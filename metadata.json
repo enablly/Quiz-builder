@@ -1,0 +1,8 @@
+{
+  "name": "Ai Quiz-builder-V4",
+  "description": "Imported from GitHub: Steelcase-APAC/quiz-builderv3",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
