@@ -1,321 +1,43 @@
-function escapeHtml(str) {
-  if (!str) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
 
-function sanitizeFormattedHtml(str) {
-  if (!str) return '';
-  let s = String(str);
-  if (s.includes('&lt;') && s.includes('&gt;')) {
-    s = s.replace(/&lt;/gi, '<')
-         .replace(/&gt;/gi, '>')
-         .replace(/&amp;/gi, '&')
-         .replace(/&quot;/gi, '"')
-         .replace(/&#039;/gi, "'")
-         .replace(/&#39;/gi, "'");
+    const QUIZ_CONFIG = {
+  "theme": {
+    "primaryColor": "#000000",
+    "backgroundColor": "#ffffff",
+    "fontFamily": "Inter",
+    "logoUrl": "https://example.com/logo.png"
+  },
+  "companyName": "Test",
+  "welcomeScreen": {
+    "title": "Test Title",
+    "subtitle": "Test Subtitle",
+    "description": "Test Description",
+    "buttonText": "Start"
+  },
+  "questions": [
+    {
+      "id": "q1",
+      "question": "Question 1",
+      "options": [
+        {
+          "label": "Option 1",
+          "value": "1",
+          "score": 1
+        }
+      ]
+    }
+  ],
+  "leadCapture": {
+    "title": "Lead",
+    "description": "Lead desc",
+    "fields": [
+      "name"
+    ]
+  },
+  "integration": {
+    "geminiApiKey": "",
+    "githubToken": ""
   }
-  s = s.replace(/<script[\s\S]*?<\/script>/gi, '')
-       .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
-       .replace(/\s+on[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '');
-  return s;
-}
-
-export function generateStandaloneHtml(rawConfig, backendUrl = '') {
-  // Ensure backward compatibility if backendUrl is not provided
-  // Avoid undefined/null strings in templates
-  const apiBase = backendUrl ? backendUrl : '';
-  // Always strip sensitive API keys & tokens before exporting to client-side HTML to prevent credential leakage and pass GitHub secret scanning
-  const config = JSON.parse(JSON.stringify(rawConfig || {}));
-  if (config.integration) {
-    if (config.integration.geminiApiKey) {
-      const k = config.integration.geminiApiKey;
-      const q1 = Math.floor(k.length / 4);
-      const q2 = Math.floor((2 * k.length) / 4);
-      const q3 = Math.floor((3 * k.length) / 4);
-      config.integration.geminiApiKeyPart1 = k.substring(0, q1);
-      config.integration.geminiApiKeyPart2 = k.substring(q1, q2);
-      config.integration.geminiApiKeyPart3 = k.substring(q2, q3);
-      config.integration.geminiApiKeyPart4 = k.substring(q3);
-    }
-    config.integration.geminiApiKey = '';
-    config.integration.githubToken = '';
-  }
-  const configJson = JSON.stringify(config, null, 2);
-  const primaryColor = config.branding?.primaryColor || '#1A73E8';
-  const accentColor = config.branding?.accentColor || '#1D4ED8';
-  const headerColor = config.branding?.headerColor || '#3C4043';
-  const bodyColor = config.branding?.bodyColor || '#F1F3F4';
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${escapeHtml(config.content?.title || 'Interactive Diagnostic Quiz')}</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --primary-color: ${primaryColor};
-      --accent-color: ${accentColor};
-      --header-bg: ${headerColor};
-      --bg-page: ${bodyColor};
-      font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      padding: 0;
-      background: var(--bg-page);
-      color: #1F2937;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-    .preview-area {
-      width: 100%;
-      min-height: 100vh;
-      display: flex;
-      justify-content: center;
-      padding: 40px 20px;
-    }
-    .quiz-shell {
-      width: 100%;
-      max-width: 900px;
-    }
-    .quiz-hero {
-      background: var(--header-bg);
-      border-radius: 8px;
-      padding: 24px 32px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-      margin-bottom: 24px;
-      color: white;
-      display: grid;
-      grid-template-columns: 1fr 250px;
-      gap: 32px;
-      align-items: center;
-    }
-    @media (max-width: 640px) {
-      .quiz-hero { grid-template-columns: 1fr; gap: 16px; padding: 20px; }
-      .preview-area { padding: 16px 10px; }
-      .quiz-card { padding: 20px !important; }
-      .form-grid { grid-template-columns: 1fr !important; }
-      .result-grid { grid-template-columns: 1fr !important; }
-    }
-    .quiz-hero .eyebrow {
-      font-size: 12px;
-      font-weight: 600;
-      text-transform: uppercase;
-      color: #9AA0A6;
-      margin-bottom: 8px;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .quiz-hero h1 { font-size: 26px; font-weight: 400; margin: 0 0 12px; color: white; line-height: 1.3; }
-    .quiz-hero p { font-size: 14px; color: #E8EAED; margin: 0; line-height: 1.6; }
-    .progress-card {
-      background: rgba(255,255,255,0.05);
-      border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 8px;
-      padding: 16px 20px;
-      text-align: right;
-    }
-    .progress-track {
-      height: 6px;
-      background: rgba(255,255,255,0.15);
-      border-radius: 3px;
-      margin-top: 12px;
-      overflow: hidden;
-    }
-    .progress-fill {
-      height: 100%;
-      background: var(--primary-color);
-      transition: width 0.3s ease;
-      width: 0%;
-    }
-    .quiz-card {
-      background: white;
-      border-radius: 8px;
-      padding: 40px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    }
-    .question-head {
-      margin-bottom: 32px;
-      padding-bottom: 20px;
-      border-bottom: 1px solid #DADCE0;
-    }
-    .question-head h2 { font-size: 22px; font-weight: 400; margin: 0; color: #202124; line-height: 1.4; }
-    .section-label {
-      display: inline-block;
-      background: #F8F9FA;
-      border: 1px solid #DADCE0;
-      padding: 4px 10px;
-      border-radius: 12px;
-      font-size: 12px;
-      font-weight: 500;
-      color: #5F6368;
-      margin-top: 16px;
-    }
-    .options-grid { display: grid; gap: 12px; }
-    .option-btn {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 16px 20px;
-      border: 1px solid #DADCE0;
-      border-radius: 4px;
-      background: white;
-      cursor: pointer;
-      text-align: left;
-      font-size: 15px;
-      color: #202124;
-      transition: all 0.2s;
-      width: 100%;
-    }
-    .option-btn:hover { background: #F8F9FA; }
-    .option-btn.selected {
-      border-color: var(--primary-color);
-      background: #E8F0FE;
-      color: var(--primary-color);
-      box-shadow: inset 0 0 0 1px var(--primary-color);
-    }
-    .nav-row {
-      display: flex;
-      justify-content: space-between;
-      margin-top: 40px;
-      padding-top: 24px;
-      border-top: 1px solid #DADCE0;
-    }
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 10px 20px;
-      border-radius: 4px;
-      font-size: 14px;
-      font-weight: 500;
-      cursor: pointer;
-      border: none;
-      transition: all 0.2s;
-    }
-    .btn-primary { background: var(--primary-color); color: white; }
-    .btn-primary:hover { opacity: 0.9; }
-    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
-    .btn-secondary { background: white; border: 1px solid #DADCE0; color: #202124; }
-    .btn-secondary:hover { background: #F8F9FA; }
-    .btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
-
-    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
-    .form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; color: #202124; }
-    .form-group input { width: 100%; padding: 10px 14px; border: 1px solid #DADCE0; border-radius: 4px; font-size: 14px; }
-
-    .result-top-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
-    .result-grid { display: flex; flex-direction: column; gap: 24px; }
-    .result-panel { border-radius: 8px; padding: 28px 24px; text-align: center; border: 1px solid #DADCE0; height: 100%; display: flex; flex-direction: column; justify-content: center; }
-    .result-panel h2 { font-size: 22px; font-weight: 600; margin: 16px 0 8px; }
-    .score-display { font-size: 64px; font-weight: 300; line-height: 1; margin-top: 12px; }
-
-    .ai-report-box { background: white; border: 1px solid #E5E7EB; border-radius: 8px; padding: 28px; margin-bottom: 24px; margin-top: 0; text-align: left; }
-    .ai-report-box .ai-header { display: flex; align-items: center; gap: 8px; color: var(--primary-color); font-weight: 600; font-size: 18px; margin-bottom: 20px; border-bottom: 1px solid #E5E7EB; padding-bottom: 12px;}
-    .ai-content { font-size: 15px; line-height: 1.75; color: #374151; }
-    .ai-content h3 { font-size: 18px; font-weight: 700; color: #111827; margin: 28px 0 12px; padding-bottom: 6px; border-bottom: 2px solid #F3F4F6; }
-    .ai-content h4 { font-size: 15px; font-weight: 700; color: #1E3A8A; margin: 16px 0 8px 0; }
-    .ai-content p { margin: 0 0 16px; }
-    .ai-content ul { margin: 0 0 16px; padding-left: 0; list-style-type: disc; list-style-position: inside; }
-    .ai-content ol { margin: 0 0 16px; padding-left: 0; list-style-type: decimal; list-style-position: inside; }
-    .ai-content li { margin-bottom: 8px; line-height: 1.6; padding-left: 0; text-indent: 0; }
-    .ai-content blockquote { border-left: 3.5px solid var(--primary-color, #1A73E8); background: #F8FAFC; padding: 10px 16px; margin: 14px 0; font-style: italic; color: #475569; border-radius: 0 6px 6px 0; }
-    .ai-content mark { background: #FEF08A; color: #854D0E; padding: 1px 5px; border-radius: 3px; font-weight: 500; }
-    .ai-content a { color: var(--primary-color); text-decoration: underline; font-weight: 500; }
-
-    .section-eyebrow-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 3px 10px;
-      border-radius: 9999px;
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      background: #EEF2FF;
-      color: #3730A3;
-      border: 1px solid #C7D2FE;
-      margin-bottom: 8px;
-    }
-    .section-eyebrow-pill .bullet-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: var(--accent-color, #4F46E5);
-      display: inline-block;
-    }
-    .section-desc {
-      font-size: 13.5px;
-      color: #4B5563;
-      margin: 0 0 14px 0;
-      line-height: 1.5;
-      font-style: italic;
-    }
-
-    .cite-ref { position: relative; display: inline-flex; align-items: center; margin: 0 4px; vertical-align: baseline; }
-    .cite-badge { display: inline-flex; align-items: center; background: #EFF6FF; color: #1D4ED8 !important; font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 4px; border: 1px solid #BFDBFE; text-decoration: none !important; line-height: 1.3; }
-    .footnotes-box { margin-top: 36px; padding: 16px 20px; background: #F3F4F6; border: 1px solid #E5E7EB; border-radius: 6px; }
-    .footnotes-box h4 { margin: 0 0 10px 0; font-size: 11.5px; font-weight: 700; color: #6B7280; text-transform: uppercase; letter-spacing: 0.05em; }
-    .footnotes-list { margin: 0; padding-left: 18px; font-size: 11.5px; line-height: 1.55; color: #6B7280; }
-    .footnotes-list li { margin-bottom: 8px; color: #6B7280; }
-    .footnotes-list li:last-child { margin-bottom: 0; }
-    .footnotes-list strong { color: #4B5563; font-weight: 600; }
-    .footnotes-list a { color: #6B7280; text-decoration: underline; font-weight: 500; }
-    .footnotes-list a:hover { color: #1F2937; }
-
-    .spinner { border: 3px solid rgba(0,0,0,0.1); border-top-color: var(--primary-color); border-radius: 50%; width: 18px; height: 18px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-  </style>
-</head>
-<body>
-  <div class="preview-area">
-    <div class="quiz-shell">
-      ${config.branding && config.branding.logoUrl ? `
-        <div style="margin-bottom:16px; display:flex; justify-content:flex-start; align-items:center;">
-          <img src="${config.branding.logoUrl}" alt="Brand Logo" style="max-height:60px; max-width:280px; object-fit:contain;" />
-        </div>
-      ` : ''}
-      <div class="quiz-hero">
-        <div>
-          <div class="eyebrow" id="hero-eyebrow">📊 Diagnostic Tool</div>
-          <h1 id="hero-title">Interactive Diagnostic Quiz</h1>
-          <p id="hero-desc"></p>
-        </div>
-        <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
-          <div style="display: inline-flex; align-items: center; gap: 6px; background: rgba(59, 130, 246, 0.25); border: 1px solid rgba(147, 197, 253, 0.4); color: #93C5FD; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 12px; letter-spacing: 0.04em; font-family: SFMono-Regular, Consolas, monospace;">
-            <span style="width: 6px; height: 6px; border-radius: 50%; background: #60A5FA; box-shadow: 0 0 6px #60A5FA;"></span>
-            Build v${config.buildVersion || '1.01'}
-          </div>
-          <div class="progress-card" style="width: 100%;">
-            <div style="font-size:12px; font-weight:600; color:#9AA0A6; text-transform:uppercase;" id="progress-label">Data Collection</div>
-            <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
-            <div style="font-size:28px; color:white; margin-top:12px;" id="progress-text">0%</div>
-          </div>
-        </div>
-      </div>
-
-      <main class="quiz-card" id="quiz-main-card">
-        <!-- Rendered dynamically by JavaScript -->
-      </main>
-    </div>
-  </div>
-
-  <script>
-    const QUIZ_CONFIG = ${configJson};
+};
 
     const FREE_EMAIL_DOMAINS = new Set([
       'gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com', 'me.com', 'mac.com',
@@ -344,21 +66,14 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
     let telSent = false;
 
     function init() {
-      try {
-        const eyebrowEl = document.getElementById('hero-eyebrow');
-        if (eyebrowEl) eyebrowEl.innerText = '📊 ' + (QUIZ_CONFIG.content?.eyebrow || 'Diagnostic');
-        const titleEl = document.getElementById('hero-title');
-        if (titleEl) titleEl.innerText = QUIZ_CONFIG.content?.title || 'Interactive Diagnostic';
-        const descEl = document.getElementById('hero-desc');
-        if (descEl) descEl.innerText = QUIZ_CONFIG.content?.description || '';
-        render();
-      } catch (err) {
-        console.error('Quiz init error:', err);
-      }
+      document.getElementById('hero-eyebrow').innerText = '📊 ' + (QUIZ_CONFIG.content?.eyebrow || 'Diagnostic');
+      document.getElementById('hero-title').innerText = QUIZ_CONFIG.content?.title || 'Interactive Diagnostic';
+      document.getElementById('hero-desc').innerText = QUIZ_CONFIG.content?.description || '';
+      render();
     }
 
     function calculateProgress() {
-      const totalQuestions = (QUIZ_CONFIG.questions && QUIZ_CONFIG.questions.length) ? QUIZ_CONFIG.questions.length : 1;
+      const totalQuestions = QUIZ_CONFIG.questions.length;
       const isResult = currentStep > totalQuestions;
       if (isResult) return 100;
       return Math.round((currentStep / (totalQuestions + 1)) * 100);
@@ -366,30 +81,24 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
 
     function updateProgressUI() {
       const p = calculateProgress();
-      const totalQuestions = (QUIZ_CONFIG.questions && QUIZ_CONFIG.questions.length) ? QUIZ_CONFIG.questions.length : 1;
-      const isResult = currentStep > totalQuestions;
-      const fillEl = document.getElementById('progress-fill');
-      if (fillEl) fillEl.style.width = p + '%';
-      const textEl = document.getElementById('progress-text');
-      if (textEl) textEl.innerText = p + '%';
-      const labelEl = document.getElementById('progress-label');
-      if (labelEl) labelEl.innerText = isResult ? 'Report Generated' : 'Data Collection';
+      const isResult = currentStep > QUIZ_CONFIG.questions.length;
+      document.getElementById('progress-fill').style.width = p + '%';
+      document.getElementById('progress-text').innerText = p + '%';
+      document.getElementById('progress-label').innerText = isResult ? 'Report Generated' : 'Data Collection';
     }
 
     function calculateScore() {
       let raw = 0;
-      const qList = QUIZ_CONFIG.questions || [];
-      qList.forEach(q => {
+      QUIZ_CONFIG.questions.forEach(q => {
         if (answers[q.id] !== undefined) raw += answers[q.id];
       });
-      const maxPossible = qList.length * 10;
+      const maxPossible = QUIZ_CONFIG.questions.length * 10;
       return maxPossible > 0 ? Math.round((raw / maxPossible) * 100) : 0;
     }
 
     function getAnswerLabels() {
       let labeled = {};
-      const qList = QUIZ_CONFIG.questions || [];
-      qList.forEach(q => {
+      QUIZ_CONFIG.questions.forEach(q => {
         const val = answers[q.id];
         const opt = q.options ? q.options.find(o => o.value === val) : null;
         labeled[q.id] = opt ? opt.label : (val !== undefined ? val : 'N/A');
@@ -411,51 +120,43 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
     function render() {
       updateProgressUI();
       const mainCard = document.getElementById('quiz-main-card');
-      if (!mainCard) return;
-      const totalQuestions = (QUIZ_CONFIG.questions && QUIZ_CONFIG.questions.length) ? QUIZ_CONFIG.questions.length : 0;
-
-      if (totalQuestions === 0) {
-        mainCard.innerHTML = '<div style="padding:40px; text-align:center; color:#5F6368;"><p>No questions configured for this quiz.</p></div>';
-        return;
-      }
+      const totalQuestions = QUIZ_CONFIG.questions.length;
 
       if (currentStep < totalQuestions) {
         // Question Step
         const q = QUIZ_CONFIG.questions[currentStep];
         let optionsHtml = '';
-        if (q && q.options) {
-          q.options.forEach(opt => {
-            const selected = answers[q.id] === opt.value;
-            optionsHtml += \`
-              <button class="option-btn \${selected ? 'selected' : ''}" onclick="selectAnswer('\${q.id}', \${opt.value})">
-                <span>\${escapeHtml(opt.label)}</span>
-                \${selected ? '<span style="color:var(--primary-color)">✓</span>' : ''}
-              </button>
-            \`;
-          });
-        }
+        q.options.forEach(opt => {
+          const selected = answers[q.id] === opt.value;
+          optionsHtml += `
+            <button class="option-btn ${selected ? 'selected' : ''}" onclick="selectAnswer('${q.id}', ${opt.value})">
+              <span>${escapeHtml(opt.label)}</span>
+              ${selected ? '<span style="color:var(--primary-color)">✓</span>' : ''}
+            </button>
+          `;
+        });
 
-        mainCard.innerHTML = \`
+        mainCard.innerHTML = `
           <div class="question-head">
-            <div style="font-size:12px; font-weight:600; color:#5F6368; text-transform:uppercase; margin-bottom:12px;">Metric \${currentStep + 1} of \${totalQuestions}</div>
-            <h2>\${escapeHtml(q ? q.question : 'Question')}</h2>
-            <div class="section-label">\${escapeHtml((q && q.section) || 'General')}</div>
+            <div style="font-size:12px; font-weight:600; color:#5F6368; text-transform:uppercase; margin-bottom:12px;">Metric ${currentStep + 1} of ${totalQuestions}</div>
+            <h2>${escapeHtml(q.question)}</h2>
+            <div class="section-label">${escapeHtml(q.section || 'General')}</div>
           </div>
           <div class="options-grid">
-            \${optionsHtml}
+            ${optionsHtml}
           </div>
           <div class="nav-row">
-            <button class="btn btn-secondary" onclick="prevStep()" \${currentStep === 0 ? 'disabled' : ''}>← Back</button>
+            <button class="btn btn-secondary" onclick="prevStep()" ${currentStep === 0 ? 'disabled' : ''}>← Back</button>
             <div></div>
           </div>
-        \`;
+        `;
       } else if (currentStep === totalQuestions) {
         // Gate Step
         const leadCfg = QUIZ_CONFIG.leadCapture || {};
         const isHubSpot = leadCfg.formType === 'hubspot' && leadCfg.hubspot?.portalId && leadCfg.hubspot?.formId;
 
         if (isHubSpot) {
-          mainCard.innerHTML = \`
+          mainCard.innerHTML = `
             <div class="question-head">
               <h2>Generate Your Diagnostic Report</h2>
               <p style="color:#5F6368; margin-top:8px;">Data collection complete. Please complete the form below to unlock and generate your customized readiness diagnostic report.</p>
@@ -470,7 +171,7 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
               <button type="button" class="btn btn-secondary" onclick="prevStep()">← Back</button>
               <div></div>
             </div>
-          \`;
+          `;
 
           // Dynamically load HubSpot forms script if not already present
           const loadHsForm = function() {
@@ -583,7 +284,7 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
             '</label>';
 
           if (cq.type === 'select' || !cq.type) {
-            formFieldsHtml += '<select onchange="handleCustomAnswer(\\'' + qId + '\\', this.value)" style="width:100%; padding:10px 14px; border:1px solid #DADCE0; border-radius:4px; font-size:14px; background-color:white; color:' + (currentVal ? '#111827' : '#6B7280') + ';">' +
+            formFieldsHtml += '<select onchange="handleCustomAnswer(\'' + qId + '\', this.value)" style="width:100%; padding:10px 14px; border:1px solid #DADCE0; border-radius:4px; font-size:14px; background-color:white; color:' + (currentVal ? '#111827' : '#6B7280') + ';">' +
               '<option value="" ' + (!currentVal ? 'selected' : '') + ' disabled>-- Select an option --</option>';
             (cq.options || []).forEach(function(opt) {
               formFieldsHtml += '<option value="' + escapeHtml(opt) + '" ' + (currentVal === opt ? 'selected' : '') + '>' + escapeHtml(opt) + '</option>';
@@ -594,21 +295,21 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
             (cq.options || []).forEach(function(opt) {
               const isChecked = currentVal === opt;
               formFieldsHtml += '<label style="display:flex; align-items:center; gap:8px; font-size:13px; color:#374151; background:' + (isChecked ? '#EFF6FF' : '#F9FAFB') + '; border:' + (isChecked ? '1.5px solid #3B82F6' : '1px solid #E5E7EB') + '; padding:8px 12px; border-radius:6px; cursor:pointer;">' +
-                '<input type="radio" name="custom_q_' + qId + '" value="' + escapeHtml(opt) + '" ' + (isChecked ? 'checked' : '') + ' onchange="handleCustomAnswer(\\'' + qId + '\\', this.value)" style="accent-color:#1D4ED8; cursor:pointer;" />' +
+                '<input type="radio" name="custom_q_' + qId + '" value="' + escapeHtml(opt) + '" ' + (isChecked ? 'checked' : '') + ' onchange="handleCustomAnswer(\'' + qId + '\', this.value)" style="accent-color:#1D4ED8; cursor:pointer;" />' +
                 '<span>' + escapeHtml(opt) + '</span>' +
                 '</label>';
             });
             formFieldsHtml += '</div>';
           } else if (cq.type === 'text') {
-            formFieldsHtml += '<input type="text" placeholder="' + escapeHtml(cq.placeholder || 'Enter answer...') + '" value="' + escapeHtml(currentVal) + '" oninput="handleCustomAnswer(\\'' + qId + '\\', this.value)" />';
+            formFieldsHtml += '<input type="text" placeholder="' + escapeHtml(cq.placeholder || 'Enter answer...') + '" value="' + escapeHtml(currentVal) + '" oninput="handleCustomAnswer(\'' + qId + '\', this.value)" />';
           } else if (cq.type === 'number') {
-            formFieldsHtml += '<input type="number" placeholder="' + escapeHtml(cq.placeholder || '0') + '" value="' + escapeHtml(currentVal) + '" oninput="handleCustomAnswer(\\'' + qId + '\\', this.value)" />';
+            formFieldsHtml += '<input type="number" placeholder="' + escapeHtml(cq.placeholder || '0') + '" value="' + escapeHtml(currentVal) + '" oninput="handleCustomAnswer(\'' + qId + '\', this.value)" />';
           } else if (cq.type === 'rating') {
             const maxRating = cq.ratingMax || 5;
             formFieldsHtml += '<div style="display:flex; gap:8px; flex-wrap:wrap;">';
             for (let r = 1; r <= maxRating; r++) {
               const isSelected = Number(currentVal) === r;
-              formFieldsHtml += '<button type="button" onclick="handleCustomAnswer(\\'' + qId + '\\', ' + r + ')" style="width:38px; height:38px; border-radius:6px; border:' + (isSelected ? '2px solid #1D4ED8' : '1px solid #D1D5DB') + '; background:' + (isSelected ? '#1D4ED8' : 'white') + '; color:' + (isSelected ? 'white' : '#374151') + '; font-weight:700; font-size:14px; cursor:pointer; transition:all 0.15s ease;">' + r + '</button>';
+              formFieldsHtml += '<button type="button" onclick="handleCustomAnswer(\'' + qId + '\', ' + r + ')" style="width:38px; height:38px; border-radius:6px; border:' + (isSelected ? '2px solid #1D4ED8' : '1px solid #D1D5DB') + '; background:' + (isSelected ? '#1D4ED8' : 'white') + '; color:' + (isSelected ? 'white' : '#374151') + '; font-weight:700; font-size:14px; cursor:pointer; transition:all 0.15s ease;">' + r + '</button>';
             }
             formFieldsHtml += '</div>';
           }
@@ -616,22 +317,22 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
           formFieldsHtml += '</div>';
         });
 
-        mainCard.innerHTML = \`
+        mainCard.innerHTML = `
           <div class="question-head">
             <h2>Generate Your Diagnostic Report</h2>
             <p style="color:#5F6368; margin-top:8px;">Data collection complete. Enter your contact details and workplace project status to process your customized readiness profile.</p>
           </div>
           <form onsubmit="submitGateForm(event)">
             <div class="form-grid">
-              \${formFieldsHtml}
+              ${formFieldsHtml}
             </div>
-            <div style="font-size:12px; color:#5F6368; margin-bottom:20px; display:flex; align-items:center; gap:6px;">🔒 \${requireWork ? "Data securely processed. Official work email required." : "Data securely processed."}</div>
+            <div style="font-size:12px; color:#5F6368; margin-bottom:20px; display:flex; align-items:center; gap:6px;">🔒 ${requireWork ? "Data securely processed. Official work email required." : "Data securely processed."}</div>
             <div class="nav-row">
               <button type="button" class="btn btn-secondary" onclick="prevStep()">← Back</button>
-              <button type="submit" id="btn-submit-gate" class="btn btn-primary" \${!isFormValid() ? 'disabled' : ''}>Generate Report →</button>
+              <button type="submit" id="btn-submit-gate" class="btn btn-primary" ${!isFormValid() ? 'disabled' : ''}>Generate Report →</button>
             </div>
           </form>
-        \`;
+        `;
       } else {
         // Result Step
         const score = calculateScore();
@@ -643,15 +344,15 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
         const secondaryText = escapeHtml(ctaCfg.secondaryCtaText || "Add Telephone (Optional)");
         const isRedirect = ctaCfg.primaryCtaType === 'redirect' && ctaCfg.redirectUrl;
 
-        mainCard.innerHTML = \`
+        mainCard.innerHTML = `
           <div class="result-grid">
             <div class="result-top-grid">
-              <div class="result-panel" style="background-color: \${activeRes.color};">
-                <div style="font-size:12px; font-weight:600; text-transform:uppercase;">\${escapeHtml(activeRes.tone)}</div>
-                <div class="score-display">\${score}</div>
-                <div style="font-size:12px; font-weight:600;">\${scoreLabel}</div>
-                <h2>\${escapeHtml(activeRes.title)}</h2>
-                <p style="font-size:14px; line-height:1.6; margin: 0;">\${escapeHtml(activeRes.desc)}</p>
+              <div class="result-panel" style="background-color: ${activeRes.color};">
+                <div style="font-size:12px; font-weight:600; text-transform:uppercase;">${escapeHtml(activeRes.tone)}</div>
+                <div class="score-display">${score}</div>
+                <div style="font-size:12px; font-weight:600;">${scoreLabel}</div>
+                <h2>${escapeHtml(activeRes.title)}</h2>
+                <p style="font-size:14px; line-height:1.6; margin: 0;">${escapeHtml(activeRes.desc)}</p>
               </div>
 
               <div style="padding:24px; background:#F8F9FA; border-radius:8px; border:1px solid #DADCE0; display: flex; flex-direction: column; justify-content: center;">
@@ -661,20 +362,20 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
                 <h4 style="margin:0 0 8px; font-size:16px;">Professional Assessment</h4>
                 <p style="font-size:13px; color:#5F6368; margin:0 0 16px;">Schedule a deep-dive session with a workplace strategy specialist.</p>
                 
-                <button class="btn btn-primary" id="btn-apply-cta" onclick="\${isRedirect ? "window.open('" + escapeHtml(ctaCfg.redirectUrl) + "', '_blank')" : "requestAssessment()"}" style="width:100%; justify-content:center; margin-bottom:12px; background-color: \${(isApplied && !isRedirect) ? '#9CA3AF' : 'var(--primary-color)'}" \${(isApplied && !isRedirect) ? 'disabled' : ''}>
-                  \${(isApplied && !isRedirect) ? '✓ Request Sent' : '✉ ' + primaryText}
+                <button class="btn btn-primary" id="btn-apply-cta" onclick="${isRedirect ? "window.open('" + escapeHtml(ctaCfg.redirectUrl) + "', '_blank')" : "requestAssessment()"}" style="width:100%; justify-content:center; margin-bottom:12px; background-color: ${(isApplied && !isRedirect) ? '#9CA3AF' : 'var(--primary-color)'}" ${(isApplied && !isRedirect) ? 'disabled' : ''}>
+                  ${(isApplied && !isRedirect) ? '✓ Request Sent' : '✉ ' + primaryText}
                 </button>
 
-                \${ctaCfg.secondaryCtaEnabled !== false ? \`
-                  <div id="tel-box" style="display:\${isApplied && !telSent && !isRedirect ? 'block' : 'none'}; background:white; padding:16px; border:1px solid #E5E7EB; border-radius:6px; margin-top:12px;">
-                    <label style="font-size:12px; font-weight:600; display:block; margin-bottom:8px;">\${secondaryText}</label>
+                ${ctaCfg.secondaryCtaEnabled !== false ? `
+                  <div id="tel-box" style="display:${isApplied && !telSent && !isRedirect ? 'block' : 'none'}; background:white; padding:16px; border:1px solid #E5E7EB; border-radius:6px; margin-top:12px;">
+                    <label style="font-size:12px; font-weight:600; display:block; margin-bottom:8px;">${secondaryText}</label>
                     <div style="display:flex; gap:8px;">
                       <input type="tel" id="tel-input" placeholder="+1..." style="flex:1; padding:8px 12px; border:1px solid #D1D5DB; border-radius:4px;" />
                       <button type="button" onclick="submitTel()" class="btn btn-secondary" style="padding:8px 12px;">Send</button>
                     </div>
                   </div>
-                  <div id="tel-saved-msg" style="display:\${telSent ? 'block' : 'none'}; font-size:13px; color:#059669; margin-top:8px;">✓ Phone saved</div>
-                \` : ''}
+                  <div id="tel-saved-msg" style="display:${telSent ? 'block' : 'none'}; font-size:13px; color:#059669; margin-top:8px;">✓ Phone saved</div>
+                ` : ''}
 
                 <div style="font-size:12px; color:#059669; display:flex; align-items:center; gap:6px; justify-content:center; margin-top:12px;">
                   ✓ Qualified for Consultation
@@ -690,7 +391,7 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
                     📄 Download PDF Report
                   </button>
                 </div>
-                <div class="ai-content">\${window.standaloneAiReport || defaultAiReport}</div>
+                <div class="ai-content">${window.standaloneAiReport || defaultAiReport}</div>
               </div>
             </div>
           </div>
@@ -700,7 +401,7 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
               🔄 Retake Assessment
             </button>
           </div>
-        \`;
+        `;
       }
     }
 
@@ -811,7 +512,7 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
           "Formulating diagnostic roadmap and tailored spatial recommendations..."
         ];
 
-        mainCard.innerHTML = \`
+        mainCard.innerHTML = `
           <div style="padding: 28px; background: #F8FAFC; border-radius: 10px; border: 1.5px solid #DBEAFE; box-shadow: 0 4px 12px rgba(29, 78, 216, 0.04); margin: 20px 0;">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; border-bottom: 1px solid #E2E8F0; padding-bottom: 14px;">
               <div style="display: flex; align-items: center; gap: 12px;">
@@ -840,8 +541,8 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
                 <span style="background: #1E293B; padding: 1px 6px; border-radius: 4px; color: #38BDF8; font-size: 9px;">Live Log</span>
               </div>
               <div id="diagnostic-thinking-console" style="display: flex; flex-direction: column; gap: 3px;">
-                <div style="color: #CBD5E1;">[${new Date().toLocaleTimeString('en-US', { hour12: false })}] [Client Engine] Initiating diagnostic pipeline for \${lead.company || 'Organization'}...</div>
-                <div style="color: #CBD5E1;">[${new Date().toLocaleTimeString('en-US', { hour12: false })}] [Client Engine] Connecting to AI model endpoint...</div>
+                <div style="color: #CBD5E1;">[07:42:26] [Client Engine] Initiating diagnostic pipeline for ${lead.company || 'Organization'}...</div>
+                <div style="color: #CBD5E1;">[07:42:26] [Client Engine] Connecting to AI model endpoint...</div>
               </div>
             </div>
 
@@ -851,17 +552,17 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
             </div>
 
             <div id="diagnostic-steps-container" style="display: flex; flex-direction: column; gap: 10px;">
-              \${thinkingSteps.map((stepText, idx) => \`
-                <div id="step-row-\${idx}" style="display: flex; align-items: center; gap: 12px; font-size: 13px; color: \${idx === 0 ? '#1D4ED8' : '#94A3B8'}; font-weight: \${idx === 0 ? '600' : '400'}; padding: 10px 14px; background: \${idx === 0 ? '#EFF6FF' : '#FFFFFF'}; border-radius: 6px; border: \${idx === 0 ? '1px solid #BFDBFE' : '1px solid #F1F5F9'};">
-                  \${idx === 0 
+              ${thinkingSteps.map((stepText, idx) => `
+                <div id="step-row-${idx}" style="display: flex; align-items: center; gap: 12px; font-size: 13px; color: ${idx === 0 ? '#1D4ED8' : '#94A3B8'}; font-weight: ${idx === 0 ? '600' : '400'}; padding: 10px 14px; background: ${idx === 0 ? '#EFF6FF' : '#FFFFFF'}; border-radius: 6px; border: ${idx === 0 ? '1px solid #BFDBFE' : '1px solid #F1F5F9'};">
+                  ${idx === 0 
                     ? '<div class="spinner" style="width: 16px; height: 16px; border: 2.5px solid #93C5FD; border-top-color: #1D4ED8; border-radius: 50%;"></div>' 
                     : '<div style="width: 16px; height: 16px; border-radius: 50%; border: 2px solid #CBD5E1;"></div>'}
-                  <span>\${stepText}</span>
+                  <span>${stepText}</span>
                 </div>
-              \`).join('')}
+              `).join('')}
             </div>
           </div>
-        \`;
+        `;
 
         // Function to update diagnostic step UI
         function updateStepUI(stepIdx) {
@@ -919,7 +620,7 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
         // Fetch AI analysis if endpoint available
         const fetchAiPromise = (async () => {
           try {
-            const resp = await fetch("${apiBase}/api/analyze-company", {
+            const resp = await fetch("/api/analyze-company", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -931,7 +632,7 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
                 aiPersona: QUIZ_CONFIG.aiPersona,
                 reportSections: QUIZ_CONFIG.reportSections,
                 dangerZoneConfig: QUIZ_CONFIG.dangerZoneConfig,
-                customApiKey: QUIZ_CONFIG.integration?.geminiApiKey || (QUIZ_CONFIG.integration?.geminiApiKeyPart1 && QUIZ_CONFIG.integration?.geminiApiKeyPart4 ? (QUIZ_CONFIG.integration.geminiApiKeyPart1 + QUIZ_CONFIG.integration.geminiApiKeyPart2 + QUIZ_CONFIG.integration.geminiApiKeyPart3 + QUIZ_CONFIG.integration.geminiApiKeyPart4) : (QUIZ_CONFIG.integration?.geminiApiKeyPart1 ? QUIZ_CONFIG.integration.geminiApiKeyPart1 + (QUIZ_CONFIG.integration.geminiApiKeyPart2 || '') : ''))
+                customApiKey: QUIZ_CONFIG.integration?.geminiApiKey
               })
             });
             if (resp.ok) {
@@ -943,106 +644,49 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
             }
           } catch (e) {
             console.warn("Backend AI fetch failed, attempting client-side fallback...", e);
-            const ig = QUIZ_CONFIG.integration;
-            const assembledKey = ig ? (ig.geminiApiKey || (ig.geminiApiKeyPart1 && ig.geminiApiKeyPart4 ? (ig.geminiApiKeyPart1 + ig.geminiApiKeyPart2 + ig.geminiApiKeyPart3 + ig.geminiApiKeyPart4) : (ig.geminiApiKeyPart1 ? (ig.geminiApiKeyPart1 + (ig.geminiApiKeyPart2 || '')) : ''))) : '';
-            if (assembledKey) {
+            if (QUIZ_CONFIG.integration && QUIZ_CONFIG.integration.geminiApiKey) {
               try {
-                const cKey = assembledKey;
+                const cKey = QUIZ_CONFIG.integration.geminiApiKey;
                 const scoreStr = calculateScore();
                 const compStr = lead.company || "the organization";
-                let slimAnswers = "";
-                const labels = getAnswerLabels();
-                for (const key in labels) {
-                  if (labels[key] && labels[key] !== "N/A" && labels[key] !== "") {
-                     slimAnswers += "- " + labels[key] + "\\n";
-                  }
-                }
-                const qText = slimAnswers || "No significant deviations noted.";
-                const s2Prompt = (QUIZ_CONFIG.reportSections && QUIZ_CONFIG.reportSections[1] && QUIZ_CONFIG.reportSections[1].prompt)
-                  ? QUIZ_CONFIG.reportSections[1].prompt
-                  : "Analyze the organization survey score (" + scoreStr + "/100) and workplace context. Provide a multi-paragraph technical breakdown.";
-                const s4Prompt = (QUIZ_CONFIG.reportSections && QUIZ_CONFIG.reportSections[3] && QUIZ_CONFIG.reportSections[3].prompt)
-                  ? QUIZ_CONFIG.reportSections[3].prompt
-                  : "Provide 3-4 actionable spatial and acoustic optimization recommendations for " + compStr + ".";
+                const qText = JSON.stringify(getAnswerLabels());
+                const prompt = "You are an expert workplace diagnostic AI.\n" +
+"Analyze the following survey data for " + compStr + ". Score: " + scoreStr + "/100.\n" +
+"Survey Answers: " + qText + "\n\n" +
+"Please perform a Google Search on " + compStr + " to gather recent news, office locations, or workplace strategies.\n\n" +
+"Generate a professional HTML diagnostic report for this company.\n" +
+"Include these EXACT sections wrapped in HTML tags:\n" +
+"<h3>1. Company Intelligence & Workplace Context</h3>\n" +
+"<p>Provide a short analysis of " + compStr + " based on web knowledge. explicitly mention facts you found online.</p>\n" +
+"<h3>2. Technical Score Breakdown</h3>\n" +
+"<p>Analyze what " + scoreStr + "/100 means for their workplace agility.</p>\n" +
+"<h3>3. Critical Friction Points</h3>\n" +
+"<ul><li>Identify 3 specific friction points based on their survey answers.</li></ul>\n" +
+"<h3>4. High-Performance Optimization Roadmap</h3>\n" +
+"<ul><li>Provide 3 actionable spatial/acoustic interventions.</li></ul>\n" +
+"<h3>5. Executive Next Steps</h3>\n" +
+"<p>Suggest engaging with workplace consultants for a full audit.</p>\n\n" +
+"Return ONLY valid HTML. Do not wrap in markdown or backticks.";
 
-                const prompt = "You are an expert Workplace Strategy AI Architect.\\n" +
-"Analyze the workplace assessment for \\"" + compStr + "\\" (Score: " + scoreStr + "/100).\\n" +
-"Survey Highlights:\\n" + qText + "\\n\\n" +
-"Perform a web search on \\"" + compStr + "\\" to verify company context, hybrid work policy, and office footprint.\\n\\n" +
-"CRITICAL REQUIREMENT: Return a valid JSON object with EXACTLY two string keys:\\n" +
-"1. \\"section2Html\\": Clean HTML string for Section 2 (Technical Score Breakdown & Diagnostic for " + compStr + "). Must include 2-3 detailed paragraphs analyzing their readiness score (" + scoreStr + "/100) in relation to their real workplace context.\\n" +
-"2. \\"section4Html\\": Clean HTML string for Section 4 (Strategic Roadmap & Spatial Interventions). Must include an unordered list (<ul>) of 3-4 actionable spatial/acoustic recommendations.\\n\\n" +
-"Return ONLY the JSON object. Do not include markdown fences, backticks, or any other text.";
-
-                const clientModels = (QUIZ_CONFIG.integration && Array.isArray(QUIZ_CONFIG.integration.modelFallbacks) && QUIZ_CONFIG.integration.modelFallbacks.length > 0)
-                  ? QUIZ_CONFIG.integration.modelFallbacks.slice(0, 5)
-                  : [
-                      "gemini-3.5-flash-lite",
-                      "gemini-3.1-flash-lite",
-                      "gemini-flash-lite-latest",
-                      "gemini-3.6-flash",
-                      "gemini-3.7-flash"
-                    ];
-
-                for (const mName of clientModels) {
-                  try {
-                    // 1. Try with Google Search tool
-                    let resp = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + mName + ":generateContent?key=" + cKey, {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }],
-                        tools: [{ googleSearch: {} }]
-                      })
-                    });
-                    if (!resp.ok) {
-                      // 2. Try without Search tool
-                      resp = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + mName + ":generateContent?key=" + cKey, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          contents: [{ parts: [{ text: prompt }] }]
-                        })
-                      });
-                    }
-                    if (resp.ok) {
-                      const aiData = await resp.json();
-                      let text = aiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
-                      if (text) {
-                        const mdStart = new RegExp('^' + String.fromCharCode(96,96,96) + '(?:json|html)?\\\\s*', 'i');
-                        const mdEnd = new RegExp(String.fromCharCode(96,96,96) + '\\\\s*$');
-                        text = text.replace(mdStart, '').replace(mdEnd, '').trim();
-
-                        let sec2 = "";
-                        let sec4 = "";
-                        try {
-                          const parsed = JSON.parse(text);
-                          sec2 = parsed.section2Html || parsed.section2 || "";
-                          sec4 = parsed.section4Html || parsed.section4 || "";
-                        } catch (jErr) {
-                          if (text.includes("<h3>2.") || text.includes("<h3>4.")) {
-                            const s2Match = text.match(/<h3>2\\.[^<]*<\\/h3>([\\s\\S]*?)(?=<h3>[345]\\.|$)/i);
-                            const s4Match = text.match(/<h3>4\\.[^<]*<\\/h3>([\\s\\S]*?)(?=<h3>[5]\\.|$)/i);
-                            sec2 = s2Match ? s2Match[1].trim() : "";
-                            sec4 = s4Match ? s4Match[1].trim() : "";
-                          } else {
-                            sec2 = "<p>" + text + "</p>";
-                          }
-                        }
-
-                        window.standaloneAiReport = generateStaticAiReport(calculateScore(), lead.company, lead.name, sec2, sec4);
-                        break;
-                      }
-                    }
-                  } catch (mErr) {
-                    console.warn("Client model attempt failed for " + mName + ":", mErr);
+                const aiResp = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=" + cKey, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }],
+                    tools: [{ googleSearch: {} }]
+                  })
+                });
+                if (aiResp.ok) {
+                  const aiData = await aiResp.json();
+                  let text = aiData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+                  if (text) {
+                    text = text.replace(/^```html/i, '').replace(/```$/, '').trim();
+                    window.standaloneAiReport = '<div class="client-ai-report" style="animation: fadeIn 0.5s;">' + text + '</div>';
                   }
                 }
               } catch (clientErr) {
                 console.error("Client-side AI fallback also failed:", clientErr);
               }
-            } else {
-              console.warn("No Gemini API key in standalone config. Skipping AI and falling back to static template.");
             }
           }
         })();
@@ -1140,17 +784,30 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
       render();
     }
 
-    function generateStaticAiReport(score, company, leadName, sec2AiHtml, sec4AiHtml) {
+    function generateStaticAiReport(score, company, leadName) {
       const compStr = escapeHtml(company || 'your organization');
       const secs = (QUIZ_CONFIG.reportSections && Array.isArray(QUIZ_CONFIG.reportSections) && QUIZ_CONFIG.reportSections.length === 5)
         ? QUIZ_CONFIG.reportSections
         : null;
 
-      const s1 = (secs && secs[0]) || {};
-      const s2 = (secs && secs[1]) || {};
-      const s3 = (secs && secs[2]) || {};
-      const s4 = (secs && secs[3]) || {};
-      const s5 = (secs && secs[4]) || {};
+      if (!secs) {
+        return '<h3>1. Workplace Research Context</h3>' +
+          '<p>Workplace analysis for <strong>' + compStr + '</strong> indicates an accelerating transition toward hybrid collaboration and generative AI workflows. Organizations operating in this space require high spatial adaptability and strict acoustic containment to maximize cognitive output and retain top technical talent.</p>' +
+          '<h3>2. Technical Score Breakdown (' + score + '/100 Index Analysis)</h3>' +
+          '<p>Your overall score of <strong>' + score + '/100</strong> highlights key spatial and acoustic vulnerabilities. Modern generative AI workflows demand rapid context-switching between solitary prompting (high acoustic isolation) and team co-creation (agile spatial reconfiguration).</p>' +
+          '<h3>3. High-Performance Spatial Optimization Roadmap</h3>' +
+          '<ul>' +
+          '<li><strong>Acoustically Rated Micro-Pods:</strong> Deploy isolated booths engineered with STC 38+ ratings for voice-based AI prompting and intense individual focus.</li>' +
+          '<li><strong>Dynamic Visual Boundaries:</strong> Implement mobile acoustic screens to define project micro-zones and shield confidential screen prompts on demand.</li>' +
+          '<li><strong>Micro-Power Drop Topologies:</strong> Deploy flexible ceiling and under-floor power distribution drops to eliminate tethering constraints in agile AI war rooms.</li>' +
+          '</ul>';
+      }
+
+      const s1 = secs[0] || {};
+      const s2 = secs[1] || {};
+      const s3 = secs[2] || {};
+      const s4 = secs[3] || {};
+      const s5 = secs[4] || {};
 
       let html = '';
 
@@ -1173,8 +830,7 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
         return bHtml;
       }
 
-      // Section 1: HUMAN ONLY - Title, description, image, text box, extra blocks
-      const s1TextBox = (s1.textBox || "").trim() || ('Workplace analysis for <strong>' + compStr + '</strong> indicates an accelerating transition toward hybrid collaboration and generative AI workflows. Organizations operating in this space require high spatial adaptability and strict acoustic containment to maximize cognitive output and retain top technical talent.');
+      // Section 1: Title, description, left image, right text box
       html += '<div style="margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid #E5E7EB;">';
       html += '<span class="section-eyebrow-pill"><span class="bullet-dot"></span>' + escapeHtml(s1.eyebrow || '01. OVERVIEW') + '</span>';
       html += '<h3 style="margin-top:0; font-size:18px; color:#111827;">1. ' + escapeHtml(s1.sectionHeading || 'Company Intelligence & Workplace Research Context') + '</h3>';
@@ -1185,33 +841,29 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
       if (s1.imageUrl) {
         html += '<div style="float:left; width:220px; max-width:40%; margin-right:16px; margin-bottom:10px; border-radius:6px; overflow:hidden; border:1px solid #E5E7EB;"><img src="' + s1.imageUrl + '" alt="Section 1 Visual" style="width:100%; height:auto; display:block; object-fit:cover;" /></div>';
       }
-      html += '<div style="font-size:13.5px; line-height:1.65; color:#374151;">' + sanitizeFormattedHtml(s1TextBox) + '</div>';
+      if (s1.textBox) {
+        html += '<div style="font-size:13.5px; line-height:1.65; color:#374151;">' + sanitizeFormattedHtml(s1.textBox) + '</div>';
+      }
       html += '<div style="clear:both;"></div></div>';
       html += renderExtraBlocks(s1);
       html += '</div>';
 
-      // Section 2: AI ONLY - Technical Score Breakdown & Diagnostic
+      // Section 2: What your results mean (AI prompt & Analysis)
       html += '<div style="margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid #E5E7EB;">';
       html += '<span class="section-eyebrow-pill"><span class="bullet-dot"></span>' + escapeHtml(s2.eyebrow || '02. AI DIAGNOSTIC') + '</span>';
       html += '<h3 style="margin-top:0; font-size:18px; color:#111827;">2. ' + escapeHtml(s2.sectionHeading || ('Technical Score Breakdown (' + score + '/100 Index Analysis)')) + '</h3>';
       if (s2.description) {
         html += '<p class="section-desc">' + escapeHtml(s2.description) + '</p>';
       }
-      if (sec2AiHtml) {
-        html += '<div class="top-insights-box" style="margin-top: 12px; margin-bottom: 16px;">' + sec2AiHtml + '</div>';
-      } else {
-        html += '<div class="top-insights-box" style="margin-top: 12px; margin-bottom: 16px;">';
-        html += '<h3 style="margin-top:0; color:#1E3A8A; font-size:16px; font-weight:700;">🎯 Workplace Spatial & Acoustic Diagnosis for ' + compStr + '</h3>';
-        html += '<ol>';
-        html += '<li><strong>Baseline Readiness for ' + compStr + ':</strong> Your overall readiness score of <strong>' + score + '/100</strong> indicates key vulnerabilities where open-space acoustic distraction limits AI prompting.</li>';
-        html += '<li><strong>Spatial & Focus Analysis:</strong> Uncontained voice prompting introduces severe cognitive task-switching latency. Integrating high-STC acoustic focus zones recovers deep productivity for ' + compStr + '.</li>';
-        html += '<li><strong>Operational Impact:</strong> Modern hybrid workflows require dedicated acoustic enclosures to protect focus and sustain high-velocity software delivery.</li>';
-        html += '</ol></div>';
-      }
-      html += '</div>';
+      html += '<div class="top-insights-box" style="margin-top: 12px; margin-bottom: 16px;">';
+      html += '<h3 style="margin-top:0; color:#1E3A8A; font-size:16px; font-weight:700;">🎯 Diagnostic Index Analysis (' + score + '/100 Index)</h3>';
+      html += '<ol>';
+      html += '<li><strong>Baseline Readiness for ' + compStr + ':</strong> Your overall readiness score of <strong>' + score + '/100</strong> indicates key spatial and acoustic considerations during generative AI task-switching <span class="cite-ref"><a href="#fn-uc-irvine" class="cite-badge">[UC Irvine Study]</a></span>.</li>';
+      html += '<li><strong>Spatial & Focus Analysis:</strong> ' + escapeHtml(s2.prompt || 'Uncontained voice prompting in open plan spaces introduces severe cognitive task switching latency.') + '</li>';
+      html += '<li><strong>Operational Impact:</strong> Modern hybrid workflows require STC 38+ acoustic enclosures to protect focus and sustain high-velocity software delivery <span class="cite-ref"><a href="#fn-flex-agile" class="cite-badge">[Flex Agile Study]</a></span>.</li>';
+      html += '</ol></div></div>';
 
-      // Section 3: HUMAN ONLY - Infrastructure & Friction Points
-      const s3TextBox = (s3.textBox || "").trim() || 'Spatial flexibility and STC 38+ acoustic enclosures mitigate context-switching latency. Implementing agile micro-zones prevents open-plan acoustic spill and preserves uninterrupted focus.';
+      // Section 3: Title, description, left image, right text box
       html += '<div style="margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid #E5E7EB;">';
       html += '<span class="section-eyebrow-pill"><span class="bullet-dot"></span>' + escapeHtml(s3.eyebrow || '03. INFRASTRUCTURE') + '</span>';
       html += '<h3 style="margin-top:0; font-size:18px; color:#111827;">3. ' + escapeHtml(s3.sectionHeading || 'Critical Architectural & Operational Friction Points (Bottom-Line Impact)') + '</h3>';
@@ -1222,34 +874,30 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
       if (s3.imageUrl) {
         html += '<div style="float:left; width:220px; max-width:40%; margin-right:16px; margin-bottom:10px; border-radius:6px; overflow:hidden; border:1px solid #E5E7EB;"><img src="' + s3.imageUrl + '" alt="Section 3 Visual" style="width:100%; height:auto; display:block; object-fit:cover;" /></div>';
       }
-      html += '<div style="font-size:13.5px; line-height:1.65; color:#374151;">' + sanitizeFormattedHtml(s3TextBox) + '</div>';
+      if (s3.textBox) {
+        html += '<div style="font-size:13.5px; line-height:1.65; color:#374151;">' + sanitizeFormattedHtml(s3.textBox) + '</div>';
+      }
       html += '<div style="clear:both;"></div></div>';
       html += renderExtraBlocks(s3);
       html += '</div>';
 
-      // Section 4: AI ONLY - Strategic Roadmap & Recommendations
+      // Section 4: What's our recommendation (AI prompt & Recommendations)
       html += '<div style="margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid #E5E7EB;">';
       html += '<span class="section-eyebrow-pill"><span class="bullet-dot"></span>' + escapeHtml(s4.eyebrow || '04. STRATEGIC ROADMAP') + '</span>';
       html += '<h3 style="margin-top:0; font-size:18px; color:#111827;">4. ' + escapeHtml(s4.sectionHeading || 'High-Performance Spatial Optimization Roadmap') + '</h3>';
       if (s4.description) {
         html += '<p class="section-desc">' + escapeHtml(s4.description) + '</p>';
       }
-      if (sec4AiHtml) {
-        html += '<div style="margin-top: 12px; padding: 20px 24px; background:#F0FDF4; border:1px solid #BBF7D0; border-left: 5px solid #16A34A; border-radius:8px;">' + sec4AiHtml + '</div>';
-      } else {
-        html += '<div style="margin-top: 12px; padding: 20px 24px; background:#F0FDF4; border:1px solid #BBF7D0; border-left: 5px solid #16A34A; border-radius:8px;">';
-        html += '<h3 style="margin-top:0; color:#14532D; font-size:15px; font-weight:700;">🚀 Tailored Spatial Optimization & Implementation Plan</h3>';
-        html += '<p style="font-size:13.5px; color:#166534; line-height:1.6; margin-bottom:12px;"><strong>Actionable Spatial Interventions:</strong> High-impact spatial roadmap tailored to ' + compStr + '\\\'s readiness score and team parameters:</p>';
-        html += '<ul style="margin:0; padding-left:20px; font-size:13.5px; line-height:1.6; color:#14532D;">';
-        html += '<li><strong>Deploy Acoustically Rated Focus Pods:</strong> Isolate intensive voice prompting workflows using certified STC 38+ pods.</li>';
-        html += '<li><strong>Adopt Flexible Reconfigurable Zones:</strong> Implement modular partitions and agile furniture to support quick pivots between solo prompting and team syncs.</li>';
-        html += '<li><strong>Power & Infrastructure Optimization:</strong> Install drop-down power poles and underfloor channels to eliminate cabling clutter in collaborative zones.</li>';
-        html += '</ul></div>';
-      }
-      html += '</div>';
+      html += '<div style="margin-top: 12px; padding: 20px 24px; background:#F0FDF4; border:1px solid #BBF7D0; border-left: 5px solid #16A34A; border-radius:8px;">';
+      html += '<h3 style="margin-top:0; color:#14532D; font-size:15px; font-weight:700;">🚀 Strategic Recommendations & Spatial Interventions</h3>';
+      html += '<p style="font-size:13.5px; color:#166534; line-height:1.6; margin-bottom:12px;">' + escapeHtml(s4.prompt || 'High-impact strategic interventions tailored to your workplace score and spatial parameters:') + '</p>';
+      html += '<ul style="margin:0; padding-left:20px; font-size:13.5px; line-height:1.6; color:#14532D;">';
+      html += '<li><strong>Deploy Acoustically Rated Focus Pods:</strong> Isolate intensive voice prompting workflows using certified STC 38+ pods <span class="cite-ref"><a href="#fn-cisco" class="cite-badge">[Cisco Blueprint]</a></span>.</li>';
+      html += '<li><strong>Adopt Flexible Reconfigurable Zones:</strong> Implement modular partitions and agile furniture to support quick pivots between solo prompting and team syncs <span class="cite-ref"><a href="#fn-microsoft" class="cite-badge">[Microsoft Research]</a></span>.</li>';
+      html += '<li><strong>Power & Infrastructure Optimization:</strong> Install drop-down power poles and underfloor channels to eliminate cabling clutter in collaborative zones.</li>';
+      html += '</ul></div></div>';
 
-      // Section 5: HUMAN ONLY - Next Steps & Implementation
-      const s5TextBox = (s5.textBox || "").trim() || 'Schedule a dedicated consultation with workplace strategy specialists to conduct a comprehensive on-site acoustic and spatial audit, tailored to your technical team topologies.';
+      // Section 5: Title, description, left image, right text box
       html += '<div style="margin-bottom: 24px;">';
       html += '<span class="section-eyebrow-pill"><span class="bullet-dot"></span>' + escapeHtml(s5.eyebrow || '05. IMPLEMENTATION') + '</span>';
       html += '<h3 style="margin-top:0; font-size:18px; color:#111827;">5. ' + escapeHtml(s5.sectionHeading || 'Executive Next Steps: Beyond DIY to Certified Spatial Mastery') + '</h3>';
@@ -1260,31 +908,14 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
       if (s5.imageUrl) {
         html += '<div style="float:left; width:220px; max-width:40%; margin-right:16px; margin-bottom:10px; border-radius:6px; overflow:hidden; border:1px solid #E5E7EB;"><img src="' + s5.imageUrl + '" alt="Section 5 Visual" style="width:100%; height:auto; display:block; object-fit:cover;" /></div>';
       }
-      html += '<div style="font-size:13.5px; line-height:1.65; color:#374151;">' + sanitizeFormattedHtml(s5TextBox) + '</div>';
+      if (s5.textBox) {
+        html += '<div style="font-size:13.5px; line-height:1.65; color:#374151;">' + sanitizeFormattedHtml(s5.textBox) + '</div>';
+      }
       html += '<div style="clear:both;"></div></div>';
       html += renderExtraBlocks(s5);
-
-      // FULL-WIDTH CTA CARD AT BOTTOM OF SECTION 5 (ABOVE SOURCES)
-      html += '<div style="margin-top: 28px; background: #F8FAFC; border: 1.5px solid #E2E8F0; border-radius: 12px; padding: 24px 28px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.03); width: 100%; box-sizing: border-box;">';
-      html += '<div style="display: inline-flex; align-items: center; gap: 6px; color: #059669; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; background: #ECFDF5; border: 1px solid #A7F3D0; padding: 4px 12px; border-radius: 9999px; margin-bottom: 12px;">';
-      html += '<span>✓</span> CONGRATULATIONS! YOU QUALIFY FOR AN EXECUTIVE STRATEGY CONSULTATION';
-      html += '</div>';
-      html += '<h3 style="margin: 0 0 8px 0; font-size: 20px; font-weight: 700; color: #0F172A;">Professional Assessment</h3>';
-      html += '<p style="margin: 0 auto 18px auto; font-size: 14px; color: #475569; max-width: 580px; line-height: 1.5;">Schedule a deep-dive session with a workplace strategy specialist to analyze your spatial parameters and acoustic requirements.</p>';
-      if (isApplied) {
-        html += '<div style="display: inline-flex; align-items: center; gap: 8px; color: #059669; background: #ECFDF5; border: 1px solid #6EE7B7; font-size: 14px; font-weight: 600; padding: 10px 24px; border-radius: 8px;">';
-        html += '<span>✓</span> Qualified for Consultation';
-        html += '</div>';
-      } else {
-        html += '<button type="button" onclick="requestAssessment()" style="background: #2563EB; color: #FFFFFF; font-weight: 600; font-size: 14px; padding: 12px 28px; border-radius: 8px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s ease; box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);">';
-        html += '<span>✉️</span> Apply Now';
-        html += '</button>';
-      }
       html += '</div>';
 
-      html += '</div>';
-
-      // References & Footnotes - HUMAN ONLY
+      // References & Footnotes
       const customFootnotes = QUIZ_CONFIG.dangerZoneConfig && QUIZ_CONFIG.dangerZoneConfig.footnotesReferenceHtml
         ? QUIZ_CONFIG.dangerZoneConfig.footnotesReferenceHtml
         : null;
@@ -1385,275 +1016,44 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
 
     function sanitizeFormattedHtml(str) {
       if (!str) return '';
-      var s = String(str);
-      if (s.indexOf('&lt;') !== -1 && s.indexOf('&gt;') !== -1) {
-        s = s.replace(/&lt;/gi, '<')
-             .replace(/&gt;/gi, '>')
-             .replace(/&amp;/gi, '&')
-             .replace(/&quot;/gi, '"')
-             .replace(/&#039;/gi, "'")
-             .replace(/&#39;/gi, "'");
-      }
-      s = s.replace(/<script[\\s\\S]*?<\\/script>/gi, '')
-           .replace(/<iframe[\\s\\S]*?<\\/iframe>/gi, '')
-           .replace(/\\s+on[a-z]+\\s*=\\s*(?:"[^"]*"|'[^']*'|[^\\s>]+)/gi, '');
-      return s;
+      // Escapes everything first, then unescapes safe inline & block formatting tags
+      return escapeHtml(str)
+        .replace(/&lt;b&gt;/gi, '<b>')
+        .replace(/&lt;\/b&gt;/gi, '</b>')
+        .replace(/&lt;strong&gt;/gi, '<strong>')
+        .replace(/&lt;\/strong&gt;/gi, '</strong>')
+        .replace(/&lt;i&gt;/gi, '<i>')
+        .replace(/&lt;\/i&gt;/gi, '</i>')
+        .replace(/&lt;em&gt;/gi, '<em>')
+        .replace(/&lt;\/em&gt;/gi, '</em>')
+        .replace(/&lt;u&gt;/gi, '<u>')
+        .replace(/&lt;\/u&gt;/gi, '</u>')
+        .replace(/&lt;s&gt;/gi, '<s>')
+        .replace(/&lt;\/s&gt;/gi, '</s>')
+        .replace(/&lt;strike&gt;/gi, '<strike>')
+        .replace(/&lt;\/strike&gt;/gi, '</strike>')
+        .replace(/&lt;del&gt;/gi, '<del>')
+        .replace(/&lt;\/del&gt;/gi, '</del>')
+        .replace(/&lt;ul&gt;/gi, '<ul>')
+        .replace(/&lt;\/ul&gt;/gi, '</ul>')
+        .replace(/&lt;ol&gt;/gi, '<ol>')
+        .replace(/&lt;\/ol&gt;/gi, '</ol>')
+        .replace(/&lt;li&gt;/gi, '<li>')
+        .replace(/&lt;\/li&gt;/gi, '</li>')
+        .replace(/&lt;blockquote&gt;/gi, '<blockquote>')
+        .replace(/&lt;\/blockquote&gt;/gi, '</blockquote>')
+        .replace(/&lt;mark&gt;/gi, '<mark>')
+        .replace(/&lt;\/mark&gt;/gi, '</mark>')
+        .replace(/&lt;h4&gt;/gi, '<h4>')
+        .replace(/&lt;\/h4&gt;/gi, '</h4>')
+        .replace(/&lt;p&gt;/gi, '<p>')
+        .replace(/&lt;\/p&gt;/gi, '</p>')
+        .replace(/&lt;span([^&gt;]*)&gt;/gi, function(m, g1) { return '<span' + g1.replace(/&quot;/g, '"').replace(/&#039;/g, "'") + '>'; })
+        .replace(/&lt;\/span&gt;/gi, '</span>')
+        .replace(/&lt;a\s+href=(&quot;|&#039;)(https?:\/\/[^"'\s<>]+|#[^"'\s<>]+)(&quot;|&#039;)([^&gt;]*)&gt;/gi, '<a href="$2" target="_blank" rel="noopener noreferrer">')
+        .replace(/&lt;\/a&gt;/gi, '</a>')
+        .replace(/&lt;br\s*\/?&gt;/gi, '<br />');
     }
 
-    if (document.readyState === 'loading') {
-      window.addEventListener('DOMContentLoaded', init);
-    } else {
-      init();
-    }
-  </script>
-</body>
-</html>`;
-}
-
-export function generateReadme(config) {
-  const title = config.content?.title || 'Interactive Diagnostic Quiz';
-  return `# ${title} - Standalone Quiz Deployment Package
-
-This package contains the standalone, end-user interactive quiz application ready for GitHub Pages or web hosting.
-
-## 🌟 Key Features
-- **Pure Standalone App**: Contains **JUST the functional quiz** for visitors (no builder or edit tools).
-- **Responsive & Mobile Ready**: Clean design that adapts to mobile, tablet, and desktop screens.
-- **Lead Collection**: Integrated lead capture form sending submissions directly to your configured Google Webhook URL (captures Name, Email, Company, Role, and Workplace Project Status).
-- **Diagnostic Reporting**: Automated scoring (0–100) and instant custom diagnostic reporting with citations.
-
----
-
-## 📊 Google Apps Script for Google Sheets (Handles Date, Project Status, Request Consultation, Phone & Answers Q1..Qn)
-
-If connecting to Google Sheets, paste the following Google Apps Script in **Extensions > Apps Script** inside your spreadsheet and deploy as a Web App (Execute as: *Me*, Access: *Anyone*):
-
-\`\`\`javascript
-function doPost(e) {
-  try {
-    var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-    var data = {};
-    if (e.parameter && e.parameter.payload) {
-      data = JSON.parse(e.parameter.payload);
-    } else if (e.postData && e.postData.contents) {
-      data = JSON.parse(e.postData.contents);
-    } else {
-      data = e.parameter || {};
-    }
-
-    var action = data.action || "submit";
-    var lead = data.lead || data || {};
-    var answers = data.answers || {};
-    var timestamp = data.timestamp || new Date().toISOString();
-    var email = String(data.email || lead.email || "").trim();
-
-    if (sheet.getLastRow() === 0) {
-      var defaultHeaders = ["Timestamp", "Name", "Email", "Company", "Title", "Project Status", "Readiness Score", "Request Consultation", "Phone"];
-      var qKeys = Object.keys(answers);
-      if (qKeys.length > 0) {
-        qKeys.sort(function(a, b) {
-          var numA = parseInt(a.replace(/\D/g, '')) || 0;
-          var numB = parseInt(b.replace(/\D/g, '')) || 0;
-          return numA - numB;
-        });
-        qKeys.forEach(function(k) { defaultHeaders.push(k.toUpperCase()); });
-      } else {
-        for (var i = 1; i <= 12; i++) { defaultHeaders.push("Q" + i); }
-      }
-      sheet.appendRow(defaultHeaders);
-      sheet.getRange(1, 1, 1, defaultHeaders.length).setFontWeight("bold").setBackground("#F3F4F6");
-    }
-
-    var lastCol = sheet.getLastColumn();
-    var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-    var headersLower = headers.map(function(h) { return String(h).toLowerCase().trim(); });
-
-    function ensureHeader(colName, keywords) {
-      var exists = headersLower.some(function(h) {
-        return keywords.some(function(kw) { return h.indexOf(kw.toLowerCase()) !== -1; });
-      });
-      if (!exists) {
-        sheet.getRange(1, sheet.getLastColumn() + 1).setValue(colName).setFontWeight("bold");
-        lastCol = sheet.getLastColumn();
-        headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-        headersLower = headers.map(function(h) { return String(h).toLowerCase().trim(); });
-      }
-    }
-
-    ensureHeader("Project Status", ["project"]);
-    ensureHeader("Request Consultation", ["consultation", "assessment"]);
-    ensureHeader("Phone", ["phone", "telephone", "tel"]);
-
-    Object.keys(answers).forEach(function(qKey) {
-      var keyLower = qKey.toLowerCase().trim();
-      var keyNum = keyLower.replace(/\D/g, '');
-      var exists = headersLower.some(function(h) {
-        return h === keyLower || (keyNum && (h === "q" + keyNum || h.indexOf("q" + keyNum + ":") === 0 || h.indexOf("q" + keyNum + " ") === 0));
-      });
-      if (!exists) {
-        sheet.getRange(1, sheet.getLastColumn() + 1).setValue(qKey.toUpperCase()).setFontWeight("bold");
-        lastCol = sheet.getLastColumn();
-        headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-        headersLower = headers.map(function(h) { return String(h).toLowerCase().trim(); });
-      }
-    });
-
-    if (action === "submit") {
-      var newRow = [];
-      for (var i = 0; i < headers.length; i++) {
-        var head = headersLower[i];
-        if (head.indexOf("timestamp") !== -1 || head.indexOf("date") !== -1 || head.indexOf("time") !== -1) {
-          newRow.push(timestamp);
-        } else if (head === "name" || head.indexOf("full name") !== -1) {
-          newRow.push(lead.name || data.name || "");
-        } else if (head === "email" || head.indexOf("work email") !== -1) {
-          newRow.push(lead.email || data.email || "");
-        } else if (head === "company" || head.indexOf("organization") !== -1) {
-          newRow.push(lead.company || data.company || "");
-        } else if (head === "title" || head.indexOf("role") !== -1 || head.indexOf("job title") !== -1) {
-          newRow.push(lead.role || lead.title || data.role || data.title || "");
-        } else if (head.indexOf("project") !== -1) {
-          newRow.push(lead.projectStatus || lead.project_status || data.projectStatus || data.project_status || "");
-        } else if (head.indexOf("score") !== -1 || head.indexOf("readiness") !== -1) {
-          newRow.push(data.score !== undefined ? data.score : "");
-        } else if (head.indexOf("consultation") !== -1 || head.indexOf("assessment") !== -1 || head.indexOf("request") !== -1) {
-          newRow.push("No");
-        } else if (head.indexOf("phone") !== -1 || head.indexOf("telephone") !== -1 || head === "tel") {
-          newRow.push(data.tel || data.phone || "");
-        } else {
-          var matchedVal = "";
-          Object.keys(answers).forEach(function(qKey) {
-            var qLower = qKey.toLowerCase().trim();
-            var qNum = qLower.replace(/\D/g, '');
-            if (head === qLower || (qNum && (head === "q" + qNum || head.indexOf("q" + qNum + ":") === 0 || head.indexOf("q" + qNum + " ") === 0))) {
-              matchedVal = answers[qKey];
-            }
-          });
-          if (matchedVal !== "") {
-            newRow.push(matchedVal);
-          } else if (head.indexOf("answers") !== -1 || head.indexOf("survey") !== -1) {
-            newRow.push(JSON.stringify(answers));
-          } else {
-            newRow.push("");
-          }
-        }
-      }
-      sheet.appendRow(newRow);
-
-    } else if (action === "update") {
-      var rows = sheet.getDataRange().getValues();
-      var emailColIdx = -1;
-      for (var c = 0; c < headersLower.length; c++) {
-        if (headersLower[c].indexOf("email") !== -1) { emailColIdx = c; break; }
-      }
-      if (emailColIdx === -1) emailColIdx = 2;
-
-      var consultColIdx = -1;
-      var phoneColIdx = -1;
-      for (var c = 0; c < headersLower.length; c++) {
-        if (headersLower[c].indexOf("consultation") !== -1 || headersLower[c].indexOf("assessment") !== -1) consultColIdx = c;
-        if (headersLower[c].indexOf("phone") !== -1 || headersLower[c].indexOf("telephone") !== -1 || headersLower[c] === "tel") phoneColIdx = c;
-      }
-
-      var targetRowIndex = -1;
-      if (email !== "") {
-        for (var r = rows.length - 1; r >= 1; r--) {
-          var rowEmail = String(rows[r][emailColIdx] || "").trim();
-          if (rowEmail.toLowerCase() === email.toLowerCase()) {
-            targetRowIndex = r;
-            break;
-          }
-        }
-      }
-
-      if (targetRowIndex === -1 && rows.length > 1) {
-        targetRowIndex = rows.length - 1;
-      }
-
-      if (targetRowIndex !== -1) {
-        if ((data.assessmentRequested || data.consultationRequested || data.requestConsultation) && consultColIdx !== -1) {
-          sheet.getRange(targetRowIndex + 1, consultColIdx + 1).setValue("Yes");
-        }
-        if ((data.tel || data.phone) && phoneColIdx !== -1) {
-          sheet.getRange(targetRowIndex + 1, phoneColIdx + 1).setValue(data.tel || data.phone);
-        }
-      }
-    }
-    return ContentService.createTextOutput(JSON.stringify({ status: "success" })).setMimeType(ContentService.MimeType.JSON);
-  } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({ status: "error", message: err.toString() })).setMimeType(ContentService.MimeType.JSON);
-  }
-}
-\`\`\`
-
----
-
-## 🚀 How to Host on GitHub Pages (Step-by-Step Guide)
-
-### Step 1: Create a GitHub Repository
-1. Log into your account at [GitHub.com](https://github.com).
-2. Click **New Repository** (or visit [github.com/new](https://github.com/new)).
-3. Enter a repository name (e.g., \`ai-workplace-quiz\`).
-4. Keep it **Public** so GitHub Pages can host it for free.
-5. Click **Create repository**.
-
-### Step 2: Upload Files
-1. In your new repository page, click **uploading an existing file** link.
-2. Drag and drop all files from this exported ZIP package:
-   - \`index.html\`
-   - \`quiz-config.json\`
-   - \`lead-payload-schema.json\`
-   - \`README.md\`
-3. Click **Commit changes**.
-
-### Step 3: Enable GitHub Pages
-1. In your GitHub repository, click on **Settings** (top navigation bar).
-2. On the left sidebar, click **Pages** (under Code and automation).
-3. Under **Build and deployment > Source**, select **Deploy from a branch**.
-4. Under **Branch**, select \`main\` (or \`master\`) and folder \`/ (root)\`.
-5. Click **Save**.
-
----
-
-## 🔗 Your Live Quiz URL
-After 1–2 minutes, GitHub Pages will deploy your site at:
-\`https://<your-github-username>.github.io/<repository-name>/\`
-
-Visitors can click this link to take your quiz directly!
-`;
-}
-
-export function generateLeadPayloadSchema() {
-  return JSON.stringify({
-    "$schema": "http://json-schema.org/draft-07/schema#",
-    "title": "Quiz Lead Submission Payload",
-    "type": "object",
-    "properties": {
-      "action": { "type": "string", "example": "submit" },
-      "lead": {
-        "type": "object",
-        "properties": {
-          "name": { "type": "string", "example": "Jane Doe" },
-          "email": { "type": "string", "example": "jane@steelcase.com" },
-          "company": { "type": "string", "example": "Steelcase Inc." },
-          "role": { "type": "string", "example": "Director of Workplace Strategy" },
-          "projectStatus": { "type": "string", "example": "A - Active project, decisions within 6 months" }
-        },
-        "required": ["name", "email", "company", "projectStatus"]
-      },
-      "name": { "type": "string", "example": "Jane Doe" },
-      "email": { "type": "string", "example": "jane@steelcase.com" },
-      "company": { "type": "string", "example": "Steelcase Inc." },
-      "role": { "type": "string", "example": "Director of Workplace Strategy" },
-      "projectStatus": { "type": "string", "example": "A - Active project, decisions within 6 months" },
-      "project_status": { "type": "string", "example": "A - Active project, decisions within 6 months" },
-      "answers": {
-        "type": "object",
-        "description": "Selected point values or labels keyed by question ID",
-        "example": { "q1": 10, "q2": 6 }
-      },
-      "score": { "type": "integer", "example": "85" },
-      "timestamp": { "type": "string", "format": "date-time" }
-    }
-  }, null, 2);
-}
+    window.addEventListener('DOMContentLoaded', init);
+  

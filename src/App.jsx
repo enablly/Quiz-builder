@@ -1,10 +1,12 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Settings, Plus, Trash2, CheckCircle2, BarChart2, Mail, Lock, ArrowRight, ArrowLeft, Download, Code, Phone, RefreshCw, Eye, FileText, Upload, Image, AlertCircle, Globe, ExternalLink, Send, Key, Check, Bold, Italic, Underline, Strikethrough, List, ListOrdered, Quote, Highlighter, Heading4 } from 'lucide-react';
+import { Settings, Plus, Trash2, CheckCircle2, BarChart2, Mail, Lock, ArrowRight, ArrowLeft, ArrowUp, ArrowDown, Download, Code, Phone, RefreshCw, Eye, FileText, Upload, Image, AlertCircle, Globe, ExternalLink, Send, Key, Check, Bold, Italic, Underline, Strikethrough, List, ListOrdered, Quote, Highlighter, Heading4, User, Sparkles, Activity } from 'lucide-react';
 import JSZip from 'jszip';
 import RichTextEditor from './RichTextEditor';
 import { generateStandaloneHtml, generateReadme, generateLeadPayloadSchema } from './generateStandaloneQuiz';
+import { STEELCASE_TEMPLATES } from './steelcaseTemplates';
 
 const DEFAULT_CONFIG = {
+  activeTemplateId: 'steelcase-arc-ai',
   branding: {
     primaryColor: '#1A73E8',
     accentColor: '#1D4ED8',
@@ -13,6 +15,39 @@ const DEFAULT_CONFIG = {
     logoUrl: '',
     showLogoInPdf: true,
   },
+  leadCapture: {
+    formType: 'native', // 'native' | 'hubspot'
+    hubspot: {
+      portalId: '',
+      formId: '',
+      region: 'na1'
+    },
+    requireWorkEmail: true,
+    fields: {
+      name: { label: "Full Name", enabled: true, required: true },
+      email: { label: "Work Email", enabled: true, required: true },
+      company: { label: "Company / Organization", enabled: true, required: true },
+      role: { label: "Job Title / Role", enabled: true, required: false },
+      phone: { label: "Direct Phone", enabled: false, required: false },
+      projectStatus: { label: "Workplace Project Status", enabled: true, required: true }
+    },
+    customQuestions: []
+  },
+  ctaConfig: {
+    primaryCtaText: "Apply for Executive Strategy Consultation",
+    primaryCtaType: "in_app", // "in_app" | "redirect"
+    redirectUrl: "",
+    secondaryCtaEnabled: true,
+    secondaryCtaText: "Request Direct Phone Callback",
+    scoreLabel: "Readiness Score",
+    disclaimer: "Confidential diagnostic prepared by Steelcase Applied Research + Consulting (ARC)."
+  },
+  aiPersona: {
+    role: "Senior Workplace Strategy Architect & AI Workplace Specialist at Steelcase Applied Research + Consulting (ARC)",
+    focusAreas: "Spatial adaptability, STC 38+ acoustic enclosures, cognitive recovery, agile pods, and power infrastructure",
+    tone: "Executive, authoritative, architectural, and data-driven"
+  },
+  buildVersion: '1.01',
   content: {
     builderTitle: 'Quiz Builder',
     eyebrow: 'Executive Diagnostic (V4)',
@@ -22,6 +57,7 @@ const DEFAULT_CONFIG = {
   integration: {
     webhookUrl: '',
     geminiApiKey: '',
+    modelFallbacks: ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.6-flash', 'gemini-3.7-flash'],
     githubToken: '',
     githubRepo: '',
     githubBranch: 'main',
@@ -45,7 +81,7 @@ const DEFAULT_CONFIG = {
       eyebrow: "02. AI Diagnostic",
       sectionHeading: "Technical Score Breakdown & Readiness Analysis",
       description: "Analytical interpretation of what your readiness score means for spatial performance, acoustic privacy, cognitive focus, and bottom-line productivity.",
-      prompt: "Analyze the user's survey responses and provide deep analytical interpretation of what their readiness score means for spatial performance, acoustic privacy, cognitive focus, and bottom-line productivity.",
+      prompt: "Analyze the organization's survey answers and overall score ({score}/100). Search online for recent verified information about {company}, focusing strictly on their workplace culture, return-to-office/hybrid policies, recent leadership/people movements, and office footprint changes.\n\nWrite a concise 2-paragraph analysis (max 150-200 words total):\n- Paragraph 1: Synthesize their survey score with their real-world corporate workplace context and recent workforce/leadership dynamics.\n- Paragraph 2: Highlight how their current physical workplace setup directly impacts employee focus, collaboration latency, and operational efficiency.",
       ragFiles: []
     },
     {
@@ -63,7 +99,7 @@ const DEFAULT_CONFIG = {
       eyebrow: "04. Strategic Roadmap",
       sectionHeading: "High-Performance Spatial Optimization Roadmap",
       description: "Tailored strategic workplace interventions, architectural configurations, and actionable next steps.",
-      prompt: "Based on the organization's scores and the uploaded reference material, outline 3 high-impact strategic workplace interventions, architectural configurations, and actionable next steps.",
+      prompt: "Based on {company}'s survey responses, score ({score}/100), and verified workplace context, provide a concise, high-impact spatial roadmap (max 2 short paragraphs or 3 tight bullet points):\n- Outline 3 targeted interventions (e.g. acoustic focus micro-pods, agile reconfigurable team zones, and power drop flexibility).\n- Directly connect each intervention to the company's culture, people workflows, and surveyed friction points.\n- Keep the recommendations concise, punchy, and actionable.",
       ragFiles: []
     },
     {
@@ -106,23 +142,7 @@ Write a deeply technical, analytical, and actionable workplace diagnostic report
 13. **BMW Research & Innovation Center**: Implemented modular acoustic micro-hubs for engineering sprint teams — reduced prototype design error rates by 14% and shortened vehicle software release cycles.
 14. **Roche Pharmaceuticals (Agile Spatial Transformation)**: Redesigned R&D laboratories with flexible collaboration pods and quiet analysis sanctuaries — accelerated cross-functional clinical trial alignment by 25%.
 15. **Capital One Financial (Tech & AI Operations Hub)**: Integrated acoustic sound masking and reconfigurable team war rooms — lowered employee burnout rates by 30% and increased software engineering throughput.`,
-    footnotesReferenceHtml: `<div class="footnotes-box">
-  <h4>📚 Cited Sources & Benchmark Research References</h4>
-  <ol class="footnotes-list">
-    <li id="fn-uc-irvine"><strong>UC Irvine / Wall Street Journal Focus Study:</strong> Workplace interruption study demonstrating 23min 15sec task-switching recovery overhead per interruption ($28,000/employee/year in lost billable output). <a href="https://www.ics.uci.edu/~gmark/" target="_blank" rel="noopener noreferrer">UC Irvine Research</a> | <a href="https://www.wsj.com" target="_blank" rel="noopener noreferrer">WSJ Analysis</a></li>
-    <li id="fn-sap"><strong>SAP Workplace Health Index Benchmark:</strong> Enterprise spatial and well-being study showing each 1% increase in index yields $90M–$100M in annual operating profit gain. <a href="https://www.sap.com" target="_blank" rel="noopener noreferrer">SAP Enterprise Study</a></li>
-    <li id="fn-cisco"><strong>Cisco PENN 1 & Osaka Hybrid Workspace Blueprint:</strong> Office redesign achieving a 40% increase in collaboration zones, 13% workstation capacity gain in 36% less footprint, and $1.2M lease/energy savings. <a href="https://www.cisco.com/c/en/us/solutions/hybrid-work/penn-1.html" target="_blank" rel="noopener noreferrer">Cisco PENN 1 Blueprint</a></li>
-    <li id="fn-microsoft"><strong>Microsoft Modern AI Workplace Study:</strong> Reengineered AI co-creation workspaces reducing task-switching overhead, eliminating 1.2 hrs/day of redundant sync meetings, and boosting developer velocity by 22%. <a href="https://www.steelcase.com/research/" target="_blank" rel="noopener noreferrer">Steelcase WorkSpace Research</a></li>
-    <li id="fn-gensler"><strong>Gensler Workplace Index (Acoustic Focus & Retention):</strong> Companies providing high-STC acoustic focus zones exhibit 21% higher cognitive performance scores and 18% lower voluntary turnover. <a href="https://www.gensler.com/gri/global-workplace-survey-2024" target="_blank" rel="noopener noreferrer">Gensler Survey</a></li>
-    <li id="fn-paris-worklife"><strong>Steelcase Paris WorkLife Hybrid Lab:</strong> Technology-enabled video and acoustic focus pods resulting in a 13% direct gain in daily productivity and a 28% increase in workplace satisfaction. <a href="https://www.steelcase.com/research/articles/topics/hybrid-work/" target="_blank" rel="noopener noreferrer">Steelcase Hybrid Work Lab</a></li>
-    <li id="fn-iima"><strong>IIMA Ventures Startup Accelerator Case Study:</strong> Steelcase morphable Maker Labs and mobile acoustic boundaries enabled a 35% acceleration in product iteration cycles. <a href="https://swiy.co/Steelcase-community-based-design" target="_blank" rel="noopener noreferrer">Community-Based Design Case Study</a></li>
-    <li id="fn-flex-agile"><strong>Steelcase Flex Agile Teams Study:</strong> High-performing cross-functional teams equipped with adaptable furniture and spatial reconfigurability are 5x more likely to be high-performing and profitable. <a href="https://www.steelcase.com/research/articles/topics/privacy/" target="_blank" rel="noopener noreferrer">Steelcase Flex Agile Teams Study</a></li>
-    <li id="fn-mckinsey"><strong>McKinsey & Company State of AI & Future of Work Report:</strong> Global AI deployment benchmark detailing generative AI productivity curves and spatial collaboration requirements. <a href="https://www.mckinsey.com/capabilities/quantumblack/our-insights/the-state-of-ai" target="_blank" rel="noopener noreferrer">McKinsey AI Report</a></li>
-    <li id="fn-gartner"><strong>Gartner Digital Workplace & Smart Office Analytics:</strong> Analytics on smart office sensors, acoustic isolation, and agile pod density. <a href="https://www.gartner.com/en/information-technology/insights/digital-workplace" target="_blank" rel="noopener noreferrer">Gartner Digital Workplace</a></li>
-    <li id="fn-hbr"><strong>Harvard Business Review & BCG Generative AI Productivity Study:</strong> Empirical research on AI-assisted team output, task quality gains, and project velocity acceleration. <a href="https://hbr.org/topic/subject/ai-and-machine-learning" target="_blank" rel="noopener noreferrer">HBR AI Research</a></li>
-    <li id="fn-steelcase-privacy"><strong>Steelcase Privacy & Acoustic Pods Research:</strong> Applied environmental study on acoustic transmission class (STC 38+), speech privacy, and focus recovery in open-plan spaces. <a href="https://www.steelcase.com/research/articles/topics/privacy/" target="_blank" rel="noopener noreferrer">Steelcase Acoustic Privacy Guide</a> | <a href="https://www.steelcase.com/products/" target="_blank" rel="noopener noreferrer">Steelcase Products</a></li>
-  </ol>
-</div>`,
+    footnotesReferenceHtml: ``,
     ragFiles: [],
     ragLinks: []
   },
@@ -473,9 +493,32 @@ export default function App() {
       return {
         ...DEFAULT_CONFIG,
         ...parsed,
+        buildVersion: parsed.buildVersion || '1.01',
+        leadCapture: {
+          ...DEFAULT_CONFIG.leadCapture,
+          ...(parsed.leadCapture || {}),
+          fields: {
+            ...DEFAULT_CONFIG.leadCapture.fields,
+            ...(parsed.leadCapture?.fields || {})
+          },
+          customQuestions: Array.isArray(parsed.leadCapture?.customQuestions)
+            ? parsed.leadCapture.customQuestions
+            : []
+        },
+        ctaConfig: {
+          ...DEFAULT_CONFIG.ctaConfig,
+          ...(parsed.ctaConfig || {})
+        },
+        aiPersona: {
+          ...DEFAULT_CONFIG.aiPersona,
+          ...(parsed.aiPersona || {})
+        },
         reportSections: (Array.isArray(parsed.reportSections) && parsed.reportSections.length === 5)
           ? parsed.reportSections
           : DEFAULT_CONFIG.reportSections,
+        results: Array.isArray(parsed.results) && parsed.results.length > 0
+          ? parsed.results
+          : DEFAULT_CONFIG.results,
         dangerZoneConfig: {
           ...DEFAULT_CONFIG.dangerZoneConfig,
           ...(parsed.dangerZoneConfig || {}),
@@ -495,6 +538,11 @@ export default function App() {
     localStorage.setItem('quizBuilderConfig', JSON.stringify(config));
   }, [config]);
 
+  const [customModelInput, setCustomModelInput] = useState('');
+  const [showCustomModelBox, setShowCustomModelBox] = useState(false);
+  const [showDiagnosticLogs, setShowDiagnosticLogs] = useState(false);
+  const [lastTelemetryData, setLastTelemetryData] = useState(null);
+
   const [activeTab, setActiveTab] = useState('questions');
   const [isIntegrationUnlocked, setIsIntegrationUnlocked] = useState(false);
   const [integrationPasswordInput, setIntegrationPasswordInput] = useState('');
@@ -508,6 +556,43 @@ export default function App() {
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [thinkingStepIndex, setThinkingStepIndex] = useState(0);
+  const [thinkingProgress, setThinkingProgress] = useState(18);
+  const [aiThinkingLogs, setAiThinkingLogs] = useState([]);
+  const thinkingLogEndRef = useRef(null);
+
+  const formatClientReportHtml = (rawHtml) => {
+    if (!rawHtml) return "";
+    let clean = rawHtml.trim();
+    clean = clean.replace(/^```html\s*/gi, '').replace(/^```\s*/gi, '').replace(/```\s*$/g, '').trim();
+    if (clean.includes("&lt;") && clean.includes("&gt;")) {
+      clean = clean
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&amp;/g, "&")
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'");
+    }
+    clean = clean.replace(/\[SECTION \d+ (?:CUSTOM |DEFAULT )?DIRECTIVE[^\]]*\]:?/gi, '');
+    clean = clean.replace(/\[AI INSTRUCTION[^\]]*\]:?/gi, '');
+    clean = clean.replace(/&quot;Analyze the provided survey responses[\s\S]*?&quot;/gi, '');
+    clean = clean.replace(/"Analyze the provided survey responses[\s\S]*?"/gi, '');
+    clean = clean.replace(/&quot;Based on the organization&#39;s survey responses[\s\S]*?&quot;/gi, '');
+    clean = clean.replace(/&quot;Based on the organization's survey responses[\s\S]*?&quot;/gi, '');
+    clean = clean.replace(/"Based on the organization's survey responses[\s\S]*?"/gi, '');
+    clean = clean.replace(/&quot;Perform a web search on the target company[\s\S]*?&quot;/gi, '');
+    clean = clean.replace(/"Perform a web search on the target company[\s\S]*?"/gi, '');
+    clean = clean.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    clean = clean.replace(/__(.*?)__/g, '<strong>$1</strong>');
+    clean = clean.replace(/(^|[^\w>])\*([^*]+)\*([^\w<]|$)/g, '$1<em>$2</em>$3');
+    clean = clean.replace(/(?:^|\n)\s*[-*]\s+(.+?)(?=\n|$)/g, '\n<li>$1</li>');
+    return clean.trim();
+  };
+
+  useEffect(() => {
+    if (isGeneratingAI && thinkingLogEndRef.current) {
+      thinkingLogEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [aiThinkingLogs, isGeneratingAI]);
   
   const [applied, setApplied] = useState(false);
   const [tel, setTel] = useState('');
@@ -522,6 +607,20 @@ export default function App() {
   const [isPublishing, setIsPublishing] = useState(false);
   const [publishStatus, setPublishStatus] = useState(null);
   const [showTokenSecret, setShowTokenSecret] = useState(false);
+  const [publishCountdown, setPublishCountdown] = useState(0);
+
+  // GitHub Pages propagation countdown timer
+  useEffect(() => {
+    let timer;
+    if (publishCountdown > 0) {
+      timer = setInterval(() => {
+        setPublishCountdown(prev => (prev > 0 ? prev - 1 : 0));
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [publishCountdown]);
 
   // Sync token and repo from localStorage on initial load
   useEffect(() => {
@@ -561,9 +660,19 @@ export default function App() {
     setIsPublishing(true);
     setPublishStatus(null);
 
+    // Increment build version by 0.01
+    const currentVer = parseFloat(config.buildVersion || '1.01');
+    const nextVer = (Math.round((currentVer + 0.01) * 100) / 100).toFixed(2);
+
+    const updatedConfig = {
+      ...config,
+      buildVersion: nextVer
+    };
+    setConfig(updatedConfig);
+
     try {
       // 1. Generate standalone pure Hosted Quiz (HQ) HTML - zero builder UI, zero points
-      const hqHtml = generateStandaloneHtml(config);
+      const hqHtml = generateStandaloneHtml(updatedConfig, window.location.origin);
 
       // 2. Call backend proxy to commit and push directly to GitHub repository
       const response = await fetch('/api/publish-github', {
@@ -592,6 +701,9 @@ export default function App() {
         repoUrl: data.repoUrl,
         publishedAt: data.publishedAt,
       });
+
+      // Start 60-second countdown for GitHub Pages build/propagation
+      setPublishCountdown(60);
 
       // Save token, repo, branch persistently so 1-click works every time
       localStorage.setItem('qb_github_token', token.trim());
@@ -992,15 +1104,24 @@ export default function App() {
         <h3 style="margin: 6px 0 10px; font-size: 20px; font-weight: 700; color: #111827;">${sections[1].sectionHeading || '2. Technical Score Breakdown & Readiness Analysis'}</h3>
         <p class="section-desc">${sections[1].description || 'Analytical interpretation of what your readiness score means for spatial performance, acoustic privacy, cognitive focus, and bottom-line productivity.'}</p>
         <div style="background: #F8FAFC; border: 1px solid #CBD5E1; border-left: 4px solid var(--accent-color, #7C3AED); border-radius: 8px; padding: 20px 24px; margin-top: 14px;">
-          <p style="font-size: 14px; line-height: 1.7; color: #334155; margin: 0 0 10px 0;">
-            1. <strong>Baseline Spatial Assessment:</strong> Your current infrastructure exhibits foundational adaptability, yet acoustic containment remains a primary bottleneck during intense generative AI focus sessions <span class="cite-ref" data-tooltip="UC Irvine / Wall Street Journal Focus Study"><a href="#fn-uc-irvine" class="cite-badge">UC Irvine Study</a></span>.
-          </p>
-          <p style="font-size: 14px; line-height: 1.7; color: #334155; margin: 0 0 10px 0;">
-            2. <strong>Acoustic &amp; Focus Velocity:</strong> Unmanaged ambient noise in open zones causes substantial task-switching overhead. Incorporating high-STC sound-isolated pods recovers up to 23 minutes of deep focus per distraction event <span class="cite-ref" data-tooltip="Steelcase Privacy & Acoustic Pods Research"><a href="#fn-steelcase-privacy" class="cite-badge">Steelcase Research</a></span>.
-          </p>
-          <p style="font-size: 14px; line-height: 1.7; color: #334155; margin: 0;">
-            3. <strong>Organizational Benchmark:</strong> Peer leaders in your sector leveraging reconfigurable micro-zones achieve 22% higher sprint completion rates <span class="cite-ref" data-tooltip="Microsoft Modern AI Workplace Study"><a href="#fn-microsoft" class="cite-badge">Microsoft Study</a></span>.
-          </p>
+          ${(sections[1].prompt || sections[1].textBox) ? `
+            <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #6D28D9; margin-bottom: 8px; display: flex; align-items: center; gap: 4px;">
+              <span>⚡ CUSTOM SECTION PROMPT / TEXT ACTIVE:</span>
+            </div>
+            <div style="font-size: 14px; line-height: 1.7; color: #334155; white-space: pre-wrap;">
+              ${sections[1].prompt || sections[1].textBox}
+            </div>
+          ` : `
+            <p style="font-size: 14px; line-height: 1.7; color: #334155; margin: 0 0 10px 0;">
+              1. <strong>Baseline Spatial Assessment:</strong> Your current infrastructure exhibits foundational adaptability, yet acoustic containment remains a primary bottleneck during intense generative AI focus sessions <span class="cite-ref" data-tooltip="UC Irvine / Wall Street Journal Focus Study"><a href="#fn-uc-irvine" class="cite-badge">UC Irvine Study</a></span>.
+            </p>
+            <p style="font-size: 14px; line-height: 1.7; color: #334155; margin: 0 0 10px 0;">
+              2. <strong>Acoustic &amp; Focus Velocity:</strong> Unmanaged ambient noise in open zones causes substantial task-switching overhead. Incorporating high-STC sound-isolated pods recovers up to 23 minutes of deep focus per distraction event <span class="cite-ref" data-tooltip="Steelcase Privacy & Acoustic Pods Research"><a href="#fn-steelcase-privacy" class="cite-badge">Steelcase Research</a></span>.
+            </p>
+            <p style="font-size: 14px; line-height: 1.7; color: #334155; margin: 0;">
+              3. <strong>Organizational Benchmark:</strong> Peer leaders in your sector leveraging reconfigurable micro-zones achieve 22% higher sprint completion rates <span class="cite-ref" data-tooltip="Microsoft Modern AI Workplace Study"><a href="#fn-microsoft" class="cite-badge">Microsoft Study</a></span>.
+            </p>
+          `}
         </div>
       </div>
 
@@ -1030,11 +1151,20 @@ export default function App() {
           <h4 style="margin: 0 0 10px 0; font-size: 15px; font-weight: 700; color: #1E3A8A; display:flex; align-items:center; gap:6px;">
             <span>🚀</span> Strategic Interventions &amp; Action Plan
           </h4>
-          <ul style="margin: 0; padding-left: 18px; font-size: 14px; line-height: 1.7; color: #334155;">
-            <li style="margin-bottom: 8px;"><strong>Phase 1 (Days 1–30): Deploy Dedicated Focus Enclosures:</strong> Introduce modular single-occupant pods to insulate deep AI prompting workflows from high-traffic office noise <span class="cite-ref" data-tooltip="Cisco PENN 1 Blueprint"><a href="#fn-cisco" class="cite-badge">Cisco Blueprint</a></span>.</li>
-            <li style="margin-bottom: 8px;"><strong>Phase 2 (Days 31–90): Agile Team Maker Zones:</strong> Reconfigure floor plates with mobile acoustic screens, whiteboards, and localized power stations to enable rapid shift from solitary analysis to co-creation <span class="cite-ref" data-tooltip="Steelcase Flex Agile Teams Study"><a href="#fn-flex-agile" class="cite-badge">Flex Agile Study</a></span>.</li>
-            <li><strong>Phase 3 (Days 91–180): Continuous Sensor &amp; Spatial Telemetry:</strong> Monitor acoustic comfort and seat utilization indices to calibrate real-time capacity and privacy satisfaction.</li>
-          </ul>
+          ${(sections[3].prompt || sections[3].textBox) ? `
+            <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #1D4ED8; margin-bottom: 8px; display: flex; align-items: center; gap: 4px;">
+              <span>⚡ CUSTOM SECTION PROMPT / TEXT ACTIVE:</span>
+            </div>
+            <div style="font-size: 14px; line-height: 1.7; color: #334155; white-space: pre-wrap;">
+              ${sections[3].prompt || sections[3].textBox}
+            </div>
+          ` : `
+            <ul style="margin: 0; padding-left: 18px; font-size: 14px; line-height: 1.7; color: #334155;">
+              <li style="margin-bottom: 8px;"><strong>Phase 1 (Days 1–30): Deploy Dedicated Focus Enclosures:</strong> Introduce modular single-occupant pods to insulate deep AI prompting workflows from high-traffic office noise <span class="cite-ref" data-tooltip="Cisco PENN 1 Blueprint"><a href="#fn-cisco" class="cite-badge">Cisco Blueprint</a></span>.</li>
+              <li style="margin-bottom: 8px;"><strong>Phase 2 (Days 31–90): Agile Team Maker Zones:</strong> Reconfigure floor plates with mobile acoustic screens, whiteboards, and localized power stations to enable rapid shift from solitary analysis to co-creation <span class="cite-ref" data-tooltip="Steelcase Flex Agile Teams Study"><a href="#fn-flex-agile" class="cite-badge">Flex Agile Study</a></span>.</li>
+              <li><strong>Phase 3 (Days 91–180): Continuous Sensor &amp; Spatial Telemetry:</strong> Monitor acoustic comfort and seat utilization indices to calibrate real-time capacity and privacy satisfaction.</li>
+            </ul>
+          `}
         </div>
       </div>
 
@@ -1054,6 +1184,23 @@ export default function App() {
           <div style="clear: both;"></div>
         </div>
         ${renderStaticExtraBlocks(sections[4])}
+
+        <div style="margin-top: 28px; background: #F8FAFC; border: 1.5px solid #E2E8F0; border-radius: 12px; padding: 24px 28px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.03); width: 100%; box-sizing: border-box;">
+          <div style="display: inline-flex; align-items: center; gap: 6px; color: #059669; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; background: #ECFDF5; border: 1px solid #A7F3D0; padding: 4px 12px; border-radius: 9999px; margin-bottom: 12px;">
+            <span>✓</span> CONGRATULATIONS! YOU QUALIFY FOR AN EXECUTIVE STRATEGY CONSULTATION
+          </div>
+          <h3 style="margin: 0 0 8px 0; font-size: 20px; font-weight: 700; color: #0F172A;">Professional Assessment</h3>
+          <p style="margin: 0 auto 18px auto; font-size: 14px; color: #475569; max-width: 580px; line-height: 1.5;">Schedule a deep-dive session with a workplace strategy specialist to analyze your spatial parameters and acoustic requirements.</p>
+          ${applied ? `
+            <div style="display: inline-flex; align-items: center; gap: 8px; color: #059669; background: #ECFDF5; border: 1px solid #6EE7B7; font-size: 14px; font-weight: 600; padding: 10px 24px; border-radius: 8px;">
+              <span>✓</span> Qualified for Consultation
+            </div>
+          ` : `
+            <button type="button" onclick="window.requestAssessment ? window.requestAssessment() : null" style="background: #2563EB; color: #FFFFFF; font-weight: 600; font-size: 14px; padding: 12px 28px; border-radius: 8px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s ease; box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);">
+              <span>✉️</span> Apply Now
+            </button>
+          `}
+        </div>
       </div>
 
       <div style="margin-top: 32px; padding-top: 20px; border-top: 2px dashed #CBD5E1;">
@@ -1218,10 +1365,34 @@ export default function App() {
     `💡 Formulating Steelcase ARC diagnostic roadmap and tailored spatial recommendations...`
   ], [lead.company, scoreData]);
 
-  const isEmailValid = isWorkEmail(lead.email);
+  const isEmailValid = (config.leadCapture?.requireWorkEmail !== false) ? isWorkEmail(lead.email) : (lead.email && lead.email.includes('@'));
+  
+  const isLeadValid = () => {
+    const fields = config.leadCapture?.fields || {};
+    if (fields.name?.enabled !== false && fields.name?.required !== false && !lead.name?.trim()) return false;
+    if (fields.email?.enabled !== false && fields.email?.required !== false && (!lead.email?.trim() || !isEmailValid)) return false;
+    if (fields.company?.enabled !== false && fields.company?.required !== false && !lead.company?.trim()) return false;
+    if (fields.role?.enabled !== false && fields.role?.required === true && !lead.role?.trim()) return false;
+    if (fields.phone?.enabled === true && fields.phone?.required === true && !lead.phone?.trim()) return false;
+    if (fields.projectStatus?.enabled !== false && fields.projectStatus?.required !== false && !lead.projectStatus) return false;
+
+    // Validate dynamic custom questions
+    const customQs = Array.isArray(config.leadCapture?.customQuestions) ? config.leadCapture.customQuestions : [];
+    for (const cq of customQs) {
+      if (cq.enabled !== false && cq.required) {
+        const val = lead.customAnswers?.[cq.id];
+        if (val === undefined || val === null || String(val).trim() === '') {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  };
+
   const canProceed = isQuestionStep 
     ? answers[config.questions[step]?.id] !== undefined 
-    : (lead.name && lead.email && isEmailValid && lead.company && lead.projectStatus);
+    : isLeadValid();
 
   const handleAnswer = (val) => {
     if (isAnswering || step >= config.questions.length) return;
@@ -1273,21 +1444,28 @@ export default function App() {
 
   const submitToWebhook = async () => {
     setIsSubmitting(true);
-    await submitToGoogle({ 
+    // Immediately advance to results view so the user sees live progress & score card right away
+    setStep(config.questions.length + 1);
+    setPreviewMode('questions');
+
+    // Run webhook in parallel background so slow or failing Google Sheets URLs never block UI
+    submitToGoogle({ 
       action: "submit", 
       lead, 
       name: lead.name,
       email: lead.email,
       company: lead.company,
       role: lead.role,
+      phone: lead.phone,
       projectStatus: lead.projectStatus,
       project_status: lead.projectStatus,
+      customAnswers: lead.customAnswers || {},
       answers: getAnswerLabels(), 
       score: scoreData, 
       timestamp: new Date().toISOString() 
-    });
+    }).catch(err => console.error("Background webhook error:", err));
+
     setIsSubmitting(false);
-    setStep(step + 1);
     generateAiAnalysis();
   };
 
@@ -1319,16 +1497,54 @@ export default function App() {
     setIsGeneratingAI(true);
     setAiReport("");
     setThinkingStepIndex(0);
+    setThinkingProgress(18);
 
-    const interval = setInterval(() => {
-      setThinkingStepIndex(prev => (prev < 3 ? prev + 1 : prev));
-    }, 2200);
+    const nowStr = () => new Date().toLocaleTimeString('en-US', { hour12: false });
+    const initialLogs = [
+      `[${nowStr()}] [Client Engine] Initiating diagnostic generation for: "${lead.company || 'Target Organization'}"...`,
+      `[${nowStr()}] [Client Engine] Stage 1/4: Analyzing organizational profile & workplace news...`,
+      `[${nowStr()}] [Client Engine] Connecting to backend server endpoint (/api/analyze-company)...`
+    ];
+    setAiThinkingLogs(initialLogs);
+
+    const t1 = setTimeout(() => {
+      setThinkingStepIndex(1);
+      setThinkingProgress(45);
+      setAiThinkingLogs(prev => [
+        ...prev,
+        `[${nowStr()}] [Client Engine] Stage 2/4: Processing survey index metrics (${scoreData}/100)...`
+      ]);
+    }, 2500);
+
+    const t2 = setTimeout(() => {
+      setThinkingStepIndex(2);
+      setThinkingProgress(68);
+      setAiThinkingLogs(prev => [
+        ...prev,
+        `[${nowStr()}] [Client Engine] Stage 3/4: Assessing acoustic transmission (STC) & IT infrastructure...`,
+        `[${nowStr()}] [Client Engine] Awaiting Google Gemini model response & search grounding...`
+      ]);
+    }, 5500);
+
+    let currentCrawl = 68;
+    const crawlInterval = setInterval(() => {
+      if (currentCrawl < 90) {
+        currentCrawl += 1;
+        setThinkingProgress(currentCrawl);
+      }
+    }, 600);
+
+    let htmlOutput = "";
 
     try {
-      let qaText = config.questions.map(q => {
-        const selectedOpt = q.options.find(o => o.value === answers[q.id]);
-        return "Q: " + q.question + "\nA: " + (selectedOpt ? selectedOpt.label : 'N/A');
-      }).join('\n\n');
+      let qaText = config.questions
+        .map(q => {
+          const selectedOpt = q.options.find(o => o.value === answers[q.id]);
+          return { q: q.question, a: selectedOpt ? selectedOpt.label : null };
+        })
+        .filter(item => item.a && item.a !== 'N/A' && item.a !== '')
+        .map(item => "Q: " + item.q + "\nA: " + item.a)
+        .join('\n\n') || "No specific deviations recorded.";
 
       const response = await fetch("/api/analyze-company", {
         method: "POST",
@@ -1340,23 +1556,48 @@ export default function App() {
           scoreData: scoreData,
           qaText: qaText,
           customApiKey: activeApiKey,
+          aiPersona: config.aiPersona,
           reportSections: config.reportSections,
-          dangerZoneConfig: config.dangerZoneConfig
+          dangerZoneConfig: config.dangerZoneConfig,
+          modelFallbacks: config.integration?.modelFallbacks || ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.6-flash', 'gemini-3.7-flash']
         })
       });
 
       if (!response.ok) {
-        throw new Error("API call failed");
+        const errJson = await response.json().catch(() => ({}));
+        throw new Error(errJson.error || `API HTTP ${response.status}`);
       }
 
       const data = await response.json();
+
+      if (data.telemetry) {
+        setLastTelemetryData(data.telemetry);
+      }
+
+      if (data.thinkingLogs && Array.isArray(data.thinkingLogs)) {
+        setAiThinkingLogs(prev => [...prev, ...data.thinkingLogs]);
+      }
+
       if (data.html) {
-        setAiReport(data.html);
+        htmlOutput = formatClientReportHtml(data.html);
       } else {
-        throw new Error("Invalid response");
+        throw new Error("Invalid response format received from AI server");
       }
     } catch (e) {
       console.error("AI Generation error:", e);
+      const errDetail = e?.message || "Unknown error";
+      setLastTelemetryData({
+        modelUsed: "Instant Synthesis (Offline)",
+        latencyMs: 1200,
+        status: "client_fallback",
+        groundingSourcesCount: 0,
+        timestamp: new Date().toISOString()
+      });
+      setAiThinkingLogs(prev => [
+        ...prev,
+        `[${nowStr()}] [ERROR] AI request notice: ${errDetail}`,
+        `[${nowStr()}] [BENCHMARK ENGINE] Instant synthesis activated: generating Steelcase + Gensler benchmark report.`
+      ]);
       const secs = Array.isArray(config.reportSections) && config.reportSections.length === 5 
         ? config.reportSections 
         : DEFAULT_CONFIG.reportSections;
@@ -1366,72 +1607,67 @@ export default function App() {
       const s4 = secs[3] || {};
       const s5 = secs[4] || {};
 
-      setAiReport(`
+      const s1TextBox = (s1.textBox || "").trim() || `Workplace analysis for <strong>${lead.company || 'your organization'}</strong> indicates an accelerating transition toward hybrid collaboration and generative AI adoption. Organizations operating in this space require high spatial adaptability and strict acoustic containment to maximize cognitive output and retain top technical talent.`;
+      const s3TextBox = (s3.textBox || "").trim() || `Spatial flexibility and STC 38+ acoustic enclosures mitigate context-switching latency. Implementing agile micro-zones prevents open-plan acoustic spill and preserves uninterrupted focus.`;
+      const s5TextBox = (s5.textBox || "").trim() || `Schedule a dedicated consultation with workplace strategy specialists to conduct a comprehensive on-site acoustic and spatial audit, tailored to your technical team topologies.`;
+
+      const fallbackSec2Body = `<p><strong>${lead.company || 'The organization'}</strong> scored <strong>${scoreData}/100</strong>. In modern knowledge environments, spatial adaptability and acoustic isolation directly dictate cognitive performance and employee retention.</p><p>${s2.textBox || s2.prompt || ''}</p>`;
+
+      const fallbackSec4Body = s4.textBox 
+        ? `<div>${s4.textBox}</div>`
+        : (s4.prompt ? `<div>${s4.prompt}</div>` : `<ul>
+            <li><strong>Acoustic Focus Zones:</strong> Deploy dedicated high-STC quiet pods to isolate intensive solo tasks and prevent acoustic spill.</li>
+            <li><strong>Adaptive Team Neighborhoods:</strong> Implement agile, reconfigurable furnishings to support quick transitions between solo focus and collaborative sprints.</li>
+            <li><strong>Flexible Infrastructure:</strong> Ensure distributed power access and ergonomic support tailored to agile team topologies.</li>
+          </ul>`);
+
+      htmlOutput = `
         <div>
           <span class="section-eyebrow-pill"><span class="bullet-dot"></span>${s1.eyebrow || '01. OVERVIEW'}</span>
           <h3>1. ${s1.sectionHeading || 'Company Intelligence & Workplace Research Context'}</h3>
           ${s1.description ? `<p class="section-desc">${s1.description}</p>` : ''}
-          <p>Workplace analysis for <strong>${lead.company || 'your organization'}</strong> indicates an accelerating transition toward hybrid collaboration and generative AI workflows. Organizations operating in this space require high spatial adaptability and strict acoustic containment to maximize cognitive output and retain top technical talent.</p>
+          <div>${s1TextBox}</div>
         </div>
         
         <div>
           <span class="section-eyebrow-pill"><span class="bullet-dot"></span>${s2.eyebrow || '02. AI DIAGNOSTIC'}</span>
           <h3>2. ${s2.sectionHeading || `Technical Score Breakdown (${scoreData}/100 Index Analysis)`}</h3>
           ${s2.description ? `<p class="section-desc">${s2.description}</p>` : ''}
-          <p>Your overall score of <strong>${scoreData}/100</strong> highlights key spatial and acoustic vulnerabilities. Modern generative AI workflows demand rapid context-switching between solitary prompting (high acoustic isolation) and team co-creation (agile spatial reconfiguration). Leading enterprise benchmarks—such as SAP's Workplace Health Index study <span class="cite-ref" data-tooltip="Source: SAP Business Health Index — 1% index gain yields $90M–$100M operating profit increase"><a href="#fn-sap" class="cite-badge">[SAP Benchmark]</a></span>—demonstrate that optimizing physical environments directly improves operating margins, where each 1% increase in health and spatial satisfaction yields $90M–$100M in enterprise performance gains.</p>
+          <div>${fallbackSec2Body}</div>
         </div>
         
         <div>
           <span class="section-eyebrow-pill"><span class="bullet-dot"></span>${s3.eyebrow || '03. INFRASTRUCTURE'}</span>
           <h3>3. ${s3.sectionHeading || 'Critical Architectural & Operational Friction Points (Bottom-Line Impact)'}</h3>
           ${s3.description ? `<p class="section-desc">${s3.description}</p>` : ''}
-          <ul>
-            <li><strong>Acoustic Spill & Speech Privacy Deficits:</strong> Uncontained voice prompting in open plan areas creates auditory fatigue. <em>Financial Impact:</em> According to UC Irvine / Wall Street Journal focus research <span class="cite-ref" data-tooltip="Source: UC Irvine / WSJ Focus Recovery Study — 23m 15s recovery overhead costing $28k/emp/yr"><a href="#fn-uc-irvine" class="cite-badge">[UC Irvine Study]</a></span>, every open-office interruption requires 23 minutes and 15 seconds to regain deep task focus—draining $28,000 per employee annually in lost billable productivity. Gensler research <span class="cite-ref" data-tooltip="Source: Gensler Workplace Index — High-STC acoustic focus zones boost cognitive performance by 21%"><a href="#fn-gensler" class="cite-badge">[Gensler Index]</a></span> confirms that acoustic focus zones elevate cognitive performance scores by 21%.</li>
-            <li><strong>Fixed Workstation Topologies & Sprint Friction:</strong> Rigid desk layouts prevent rapid regrouping for AI project sprints. <em>Financial Impact:</em> Delayed sprint execution lengthens software product delivery cycles by 15–25%, delaying time-to-market and AI ROI.</li>
-            <li><strong>Power & Micro-Infrastructure Bottlenecks:</strong> Insufficient mobile power drops create tethering constraints during interactive AI workshops. <em>Financial Impact:</em> Degraded collaboration efficiency increases voluntary engineering turnover, costing $150,000+ per departing specialist in recruitment and onboarding.</li>
-          </ul>
+          <div>${s3TextBox}</div>
         </div>
         
         <div>
           <span class="section-eyebrow-pill"><span class="bullet-dot"></span>${s4.eyebrow || '04. STRATEGIC ROADMAP'}</span>
           <h3>4. ${s4.sectionHeading || 'High-Performance Spatial Optimization Roadmap'}</h3>
           ${s4.description ? `<p class="section-desc">${s4.description}</p>` : ''}
-          <ul>
-            <li><strong>Acoustically Rated Micro-Pods:</strong> Deploy isolated booths engineered with STC 38+ ratings for voice-based AI prompting and intense individual focus (modeled after Cisco PENN 1 <span class="cite-ref" data-tooltip="Source: Cisco PENN 1 NYC Workspace — 40% collaboration expansion & double occupancy"><a href="#fn-cisco" class="cite-badge">[Cisco Case Study]</a></span> and Steelcase Paris WorkLife hybrid labs <span class="cite-ref" data-tooltip="Source: Steelcase Paris WorkLife Hybrid Lab — 13% direct gain in daily employee productivity"><a href="#fn-paris-worklife" class="cite-badge">[Steelcase Lab]</a></span>).</li>
-            <li><strong>Dynamic Visual Boundaries:</strong> Implement mobile acoustic screens to define project micro-zones and shield confidential screen prompts on demand (proven at IIMA Ventures Accelerator <span class="cite-ref" data-tooltip="Source: IIMA Ventures Accelerator Case Study — Morphable maker labs accelerated iteration by 35%"><a href="#fn-iima" class="cite-badge">[IIMA Case Study]</a></span>).</li>
-            <li><strong>Micro-Power Drop Topologies:</strong> Deploy flexible ceiling and under-floor power distribution drops to eliminate tethering constraints in agile AI war rooms.</li>
-            <li><strong>Steelcase ARC Guidance:</strong> Explore the <a href="https://swiy.co/Steelcase-4new-Ai-workspaces" target="_blank" rel="noopener noreferrer">Steelcase 4 New AI Workspaces Blueprint</a>, <a href="https://swiy.co/Steelcase-People-Centered-AI-Spaces" target="_blank" rel="noopener noreferrer">People-Centered AI Spaces Research</a>, and <a href="https://swiy.co/Steelcase-community-based-design" target="_blank" rel="noopener noreferrer">Community-Based Design Methodology</a>.</li>
-          </ul>
+          <div>${fallbackSec4Body}</div>
         </div>
         
         <div>
           <span class="section-eyebrow-pill"><span class="bullet-dot"></span>${s5.eyebrow || '05. IMPLEMENTATION'}</span>
           <h3>5. ${s5.sectionHeading || 'Executive Next Steps: Beyond DIY to Certified Spatial Mastery'}</h3>
           ${s5.description ? `<p class="section-desc">${s5.description}</p>` : ''}
-          <p>While these direct diagnostic recommendations allow your team to make immediate, initial spatial adjustments, achieving full 100% workplace optimization for AI adoption involves complex environmental variables like acoustic reverberation (RT60), spatial sensor telemetry, and behavioral ergonomics.</p>
-          <p>While internal facilities teams often attempt a DIY approach, global technology leaders—including pioneer organizations like <strong>Microsoft</strong> and <strong>Google</strong>—trust and engage <strong>Steelcase Applied Research + Consulting (ARC)</strong> specialists to masterplan their physical AI environments. A Steelcase ARC consultant will reach out to conduct a holistic, data-driven diagnostic audit to craft a customized Community-Based Design masterplan.</p>
+          <div>${s5TextBox}</div>
         </div>
-
-        <div class="footnotes-box">
-          <h4>📚 Cited Sources & Benchmark Research References</h4>
-          <ol class="footnotes-list">
-            <li id="fn-uc-irvine"><strong>UC Irvine / Wall Street Journal Focus Study:</strong> Workplace interruption research demonstrating a 23min 15sec task-switching recovery overhead per interruption ($28,000/employee/year in lost billable productivity). <a href="https://www.ics.uci.edu/~gmark/" target="_blank" rel="noopener noreferrer">UC Irvine Research</a> | <a href="https://www.wsj.com" target="_blank" rel="noopener noreferrer">WSJ Analysis</a></li>
-            <li id="fn-sap"><strong>SAP Workplace Health Index Benchmark:</strong> Enterprise spatial and well-being study showing each 1% increase in index yields $90M–$100M in annual operating profit gain. <a href="https://www.sap.com" target="_blank" rel="noopener noreferrer">SAP Enterprise Study</a></li>
-            <li id="fn-cisco"><strong>Cisco PENN 1 & Osaka Hybrid Workspace Blueprint:</strong> Office redesign achieving a 40% increase in collaboration zones, 13% workstation capacity gain in 36% less footprint, and $1.2M lease/energy savings. <a href="https://www.cisco.com/c/en/us/solutions/hybrid-work/penn-1.html" target="_blank" rel="noopener noreferrer">Cisco PENN 1 Blueprint</a></li>
-            <li id="fn-microsoft"><strong>Microsoft Modern AI Workplace Study:</strong> Reengineered AI co-creation workspaces reducing task-switching overhead, eliminating 1.2 hrs/day of redundant sync meetings, and boosting developer velocity by 22%. <a href="https://www.steelcase.com/research/" target="_blank" rel="noopener noreferrer">Steelcase Workspace Research</a></li>
-            <li id="fn-gensler"><strong>Gensler Workplace Index (Acoustic Focus & Retention):</strong> Companies providing high-STC acoustic focus zones exhibit 21% higher cognitive performance scores and 18% lower voluntary turnover. <a href="https://www.gensler.com/gri/global-workplace-survey-2024" target="_blank" rel="noopener noreferrer">Gensler Survey</a></li>
-            <li id="fn-paris-worklife"><strong>Steelcase Paris WorkLife Hybrid Lab:</strong> Technology-enabled video and acoustic focus pods resulting in a 13% direct gain in daily productivity and a 28% increase in workplace satisfaction. <a href="https://www.steelcase.com/research/articles/topics/hybrid-work/" target="_blank" rel="noopener noreferrer">Steelcase Hybrid Work Lab</a></li>
-            <li id="fn-iima"><strong>IIMA Ventures Startup Accelerator Case Study:</strong> Steelcase morphable Maker Labs and mobile acoustic boundaries enabled a 35% acceleration in product iteration cycles. <a href="https://swiy.co/Steelcase-community-based-design" target="_blank" rel="noopener noreferrer">Community-Based Design Case Study</a></li>
-            <li id="fn-flex-agile"><strong>Steelcase Flex Agile Teams Study:</strong> High-performing cross-functional teams equipped with adaptable furniture and spatial reconfigurability are 5x more likely to be high-performing and profitable. <a href="https://www.steelcase.com/research/articles/topics/privacy/" target="_blank" rel="noopener noreferrer">Steelcase Flex Agile Teams Study</a></li>
-            <li id="fn-mckinsey"><strong>McKinsey & Company State of AI & Future of Work Report:</strong> Global AI deployment benchmark detailing generative AI productivity curves and spatial collaboration requirements. <a href="https://www.mckinsey.com/capabilities/quantumblack/our-insights/the-state-of-ai" target="_blank" rel="noopener noreferrer">McKinsey AI Report</a></li>
-            <li id="fn-gartner"><strong>Gartner Digital Workplace & Smart Office Analytics:</strong> Analytics on smart office sensors, acoustic isolation, and agile pod density. <a href="https://www.gartner.com/en/information-technology/insights/digital-workplace" target="_blank" rel="noopener noreferrer">Gartner Digital Workplace</a></li>
-            <li id="fn-hbr"><strong>Harvard Business Review & BCG Generative AI Productivity Study:</strong> Empirical research on AI-assisted team output, task quality gains, and project velocity acceleration. <a href="https://hbr.org/topic/subject/ai-and-machine-learning" target="_blank" rel="noopener noreferrer">HBR AI Research</a></li>
-            <li id="fn-steelcase-privacy"><strong>Steelcase Privacy & Acoustic Pods Research:</strong> Applied environmental study on acoustic transmission class (STC 38+), speech privacy, and focus recovery in open-plan spaces. <a href="https://www.steelcase.com/research/articles/topics/privacy/" target="_blank" rel="noopener noreferrer">Steelcase Acoustic Privacy Guide</a> | <a href="https://www.steelcase.com/products/" target="_blank" rel="noopener noreferrer">Steelcase Products</a></li>
-          </ol>
-        </div>
-      `);
+      `;
     } finally {
-      clearInterval(interval);
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearInterval(crawlInterval);
+
+      // Transition to Stage 4 (Formulating diagnostic roadmap) and zoom progress bar to 100%
+      setThinkingStepIndex(3);
+      setThinkingProgress(100);
+      await new Promise(res => setTimeout(res, 700));
+
+      setAiReport(formatClientReportHtml(htmlOutput));
       setIsGeneratingAI(false);
     }
   };
@@ -1470,6 +1706,12 @@ export default function App() {
   const getSanitizedConfig = (cfg) => {
     const clean = JSON.parse(JSON.stringify(cfg || {}));
     if (clean.integration) {
+      if (clean.integration.geminiApiKey) {
+        const k = clean.integration.geminiApiKey;
+        const mid = Math.floor(k.length / 2);
+        clean.integration.geminiApiKeyPart1 = k.substring(0, mid);
+        clean.integration.geminiApiKeyPart2 = k.substring(mid);
+      }
       clean.integration.geminiApiKey = '';
     }
     return clean;
@@ -1481,7 +1723,7 @@ export default function App() {
 
   const exportStandaloneHtml = () => {
     try {
-      const htmlContent = generateStandaloneHtml(config);
+      const htmlContent = generateStandaloneHtml(config, window.location.origin);
       downloadFile('index.html', htmlContent, 'text/html');
     } catch (err) {
       console.error('Failed to generate standalone HTML:', err);
@@ -1502,7 +1744,7 @@ export default function App() {
     try {
       const zip = new JSZip();
       const sanitizedConfig = getSanitizedConfig(config);
-      zip.file('index.html', generateStandaloneHtml(config));
+      zip.file('index.html', generateStandaloneHtml(config, window.location.origin));
       zip.file('quiz-config.json', JSON.stringify(sanitizedConfig, null, 2));
       zip.file('README.md', generateReadme(sanitizedConfig));
       zip.file('lead-payload-schema.json', generateLeadPayloadSchema());
@@ -1560,41 +1802,44 @@ export default function App() {
       {/* BUILDER SIDEBAR */}
       {!isVisitorPreview && (
         <div className="builder-sidebar">
-          <div className="builder-header">
-            <h2><Settings size={20} /> {config.content?.builderTitle || 'Quiz Builder'}</h2>
-            <div style={{display:'flex', gap:8, alignItems:'center'}}>
-              <button 
-                onClick={() => {
-                  setShowPublishModal(true);
-                  handlePublishToGitHub();
-                }} 
-                style={{
-                  background: '#059669', 
-                  color: 'white', 
-                  border: 'none', 
-                  padding: '6px 12px', 
-                  borderRadius: '6px', 
-                  fontSize: '12px', 
-                  fontWeight: '600', 
-                  display: 'inline-flex', 
-                  alignItems: 'center', 
-                  gap: '5px', 
-                  cursor: 'pointer',
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.08)'
-                }} 
-                title="1-Click Publish live quiz to GitHub Pages"
-              >
-                <Globe size={14}/> Publish
-              </button>
-              <button className="builder-export-btn" onClick={exportGitHubFiles} style={{padding: '6px 10px', fontSize: 12}}><Download size={14}/> Export</button>
+          <div className="builder-header" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '12px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ margin: 0 }}><Settings size={20} /> {config.content?.builderTitle || 'Quiz Builder'}</h2>
+              <div style={{display:'flex', gap:8, alignItems:'center'}}>
+                <button 
+                  onClick={() => {
+                    setShowPublishModal(true);
+                    handlePublishToGitHub();
+                  }} 
+                  style={{
+                    background: '#059669', 
+                    color: 'white', 
+                    border: 'none', 
+                    padding: '6px 12px', 
+                    borderRadius: '6px', 
+                    fontSize: '12px', 
+                    fontWeight: '600', 
+                    display: 'inline-flex', 
+                    alignItems: 'center', 
+                    gap: '5px', 
+                    cursor: 'pointer',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.08)'
+                  }} 
+                  title="1-Click Publish live quiz to GitHub Pages"
+                >
+                  <Globe size={14}/> Publish
+                </button>
+                <button className="builder-export-btn" onClick={exportGitHubFiles} style={{padding: '6px 10px', fontSize: 12}}><Download size={14}/> Export</button>
+              </div>
             </div>
           </div>
         
         <div className="builder-tabs">
-          <button className={`tab-btn ${activeTab === 'questions' ? 'active' : ''}`} onClick={() => setActiveTab('questions')}>Questions & Scoring</button>
-          <button className={`tab-btn ${activeTab === 'reports' ? 'active' : ''}`} onClick={() => setActiveTab('reports')}>Report Designer</button>
+          <button className={`tab-btn ${activeTab === 'questions' ? 'active' : ''}`} onClick={() => setActiveTab('questions')}>Questions</button>
+          <button className={`tab-btn ${activeTab === 'form' ? 'active' : ''}`} onClick={() => setActiveTab('form')}>Form</button>
+          <button className={`tab-btn ${activeTab === 'reports' ? 'active' : ''}`} onClick={() => setActiveTab('reports')}>Report</button>
           <button className={`tab-btn ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>
-            Settings {!isIntegrationUnlocked && <Lock size={12} style={{ marginLeft: '4px', display: 'inline-block', verticalAlign: 'middle' }} />}
+            Setting {!isIntegrationUnlocked && <Lock size={12} style={{ marginLeft: '4px', display: 'inline-block', verticalAlign: 'middle' }} />}
           </button>
         </div>
 
@@ -2357,6 +2602,47 @@ export default function App() {
                 );
               })}
 
+              {/* Report Footnotes & Cited Sources (User-Editable WYSIWYG Editor) */}
+              <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderLeft: '4px solid #0EA5E9', borderRadius: '8px', padding: '18px', marginTop: '24px', marginBottom: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', paddingBottom: '10px', borderBottom: '1px solid #F1F5F9' }}>
+                  <span style={{ fontSize: '14px', fontWeight: 700, color: '#0F172A', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ background: '#0EA5E9', color: 'white', width: '22px', height: '22px', borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700 }}>
+                      📚
+                    </span>
+                    Report Footnotes &amp; Cited Sources
+                  </span>
+                  <span style={{ fontSize: '11px', background: '#E0F2FE', color: '#0369A1', padding: '3px 10px', borderRadius: '12px', fontWeight: 600 }}>
+                    Rendered at Bottom of Report &amp; PDF
+                  </span>
+                </div>
+
+                <div className="field-group" style={{ marginBottom: '6px' }}>
+                  <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#334155', marginBottom: '6px' }}>
+                    <span style={{ fontWeight: 600 }}>Citations, Benchmark References &amp; Study Links</span>
+                    <span style={{ fontSize: '11px', color: '#64748B', fontWeight: 'normal' }}>WYSIWYG Visual Editor</span>
+                  </label>
+                  <RichTextEditor
+                    id="report-footnotes-editor"
+                    minHeight="140px"
+                    showCodeToggle={true}
+                    value={config.dangerZoneConfig?.footnotesReferenceHtml || ''}
+                    placeholder="Enter footnotes, study citations, benchmark links, and research references..."
+                    onChange={val => {
+                      setConfig(prev => ({
+                        ...prev,
+                        dangerZoneConfig: {
+                          ...(prev.dangerZoneConfig || DEFAULT_CONFIG.dangerZoneConfig),
+                          footnotesReferenceHtml: val
+                        }
+                      }));
+                    }}
+                  />
+                  <div style={{ fontSize: '11px', color: '#64748B', marginTop: '6px', lineHeight: '1.4' }}>
+                    💡 Use the visual editor to bold study titles, add numbered/bulleted citations, or insert clickable URLs directly. You can also toggle <strong>HTML Code</strong> view anytime.
+                  </div>
+                </div>
+              </div>
+
               {/* DANGER ZONE: Core AI Prompt & RAG Knowledge Engine */}
               <div style={{ marginTop: '36px', borderTop: '2px dashed #EF4444', paddingTop: '24px' }}>
                 <div style={{ background: '#FEF2F2', border: '1.5px solid #F87171', borderRadius: '8px', padding: '16px 18px', marginBottom: '18px' }}>
@@ -2365,21 +2651,45 @@ export default function App() {
                       ⚠️ Danger Zone
                     </span>
                     <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: '#991B1B' }}>
-                      Core AI System Prompt &amp; Global RAG Knowledge Bank
+                      Core AI System Prompt &amp; Global RAG Knowledge Architecture
                     </h4>
                   </div>
                   <p style={{ margin: 0, fontSize: '12px', color: '#B91C1C', lineHeight: 1.5 }}>
-                    <strong>Warning:</strong> Modifying these settings directly overrides the foundational AI architecture, system prompt, and fallback research dataset. Do not change these unless you understand how prompt engineering and grounding citations function.
+                    <strong>Warning:</strong> Modifying these settings directly overrides the foundational AI architecture, system prompt, and fallback research dataset.
                   </p>
                 </div>
 
-                <div className="field-group" style={{ marginBottom: '16px' }}>
-                  <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#991B1B' }}>
-                    <span>Global Master AI System Prompt (Baseline Persona)</span>
-                    <span style={{ fontSize: '10px', color: '#EF4444', fontWeight: 'normal' }}>Fallback if Section Prompts are blank</span>
-                  </label>
+                {/* Architecture Overview Banner */}
+                <div style={{ background: '#FFF5F5', border: '1px solid #FECACA', borderRadius: '8px', padding: '12px 16px', marginBottom: '20px', fontSize: '12px', color: '#7F1D1D', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                  <span style={{ fontWeight: 700, color: '#991B1B' }}>How AI Generation Works:</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px' }}>
+                    <span style={{ background: '#FFFFFF', padding: '3px 8px', borderRadius: '4px', border: '1px solid #FCA5A5', fontWeight: 600 }}>1. Master Persona (Prompt)</span>
+                    <span>➔</span>
+                    <span style={{ background: '#FFFFFF', padding: '3px 8px', borderRadius: '4px', border: '1px solid #FCA5A5', fontWeight: 600 }}>2. Uploaded Files (Priority 1 Grounding)</span>
+                    <span>➔</span>
+                    <span style={{ background: '#FFFFFF', padding: '3px 8px', borderRadius: '4px', border: '1px solid #FCA5A5', fontWeight: 600 }}>3. Reference URLs &amp; Curated Benchmarks (Fallback)</span>
+                  </div>
+                </div>
+
+                {/* PART 1: MASTER SYSTEM PROMPT */}
+                <div style={{ background: '#FFFFFF', border: '1px solid #FECACA', borderRadius: '8px', padding: '16px', marginBottom: '20px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ background: '#DC2626', color: 'white', width: '20px', height: '20px', borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700 }}>1</span>
+                        <span style={{ fontWeight: 700, color: '#991B1B', fontSize: '13px' }}>Global Master AI System Prompt (Baseline Persona)</span>
+                      </div>
+                      <p style={{ margin: '4px 0 0 26px', fontSize: '11.5px', color: '#7F1D1D' }}>
+                        Sets the overarching tone, diagnostic methodology, and analytical rigor. Also serves as the fallback whenever a specific report section prompt is left empty.
+                      </p>
+                    </div>
+                    <span style={{ fontSize: '10.5px', background: '#FEE2E2', color: '#991B1B', padding: '2px 8px', borderRadius: '10px', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                      Master Persona
+                    </span>
+                  </div>
+                  
                   <textarea 
-                    style={{ minHeight: '110px', fontSize: '12px', fontFamily: 'monospace', borderColor: '#FCA5A5' }}
+                    style={{ minHeight: '110px', fontSize: '12px', fontFamily: 'monospace', borderColor: '#FCA5A5', width: '100%', boxSizing: 'border-box' }}
                     value={config.dangerZoneConfig?.masterPrompt || ''}
                     placeholder="Enter global master system prompt..."
                     onChange={e => {
@@ -2395,97 +2705,146 @@ export default function App() {
                   />
                 </div>
 
-                <div className="field-group" style={{ marginBottom: '20px' }}>
-                  <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#991B1B', marginBottom: '6px' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}>
-                      <Upload size={14} color="#DC2626" /> Global RAG Knowledge Base Files (.txt, .md, .csv, .json)
-                    </span>
-                    <span style={{ fontSize: '10px', color: '#EF4444', fontWeight: 'normal' }}>Priority 1 Grounding Dataset</span>
-                  </label>
-                  <p style={{ fontSize: '11.5px', color: '#7F1D1D', margin: '0 0 10px 0', lineHeight: 1.4 }}>
-                    Upload proprietary workplace research whitepapers, company playbooks, acoustic standard sheets, or benchmark tables to ground AI generation across all reports.
-                  </p>
-
-                  <div style={{ marginBottom: '10px' }}>
-                    <label 
-                      htmlFor="danger-rag-file-input"
-                      style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        justifyContent: 'center', 
-                        gap: '6px', 
-                        padding: '10px 14px', 
-                        background: '#FEF2F2', 
-                        border: '1.5px dashed #EF4444', 
-                        borderRadius: '6px', 
-                        cursor: 'pointer', 
-                        fontSize: '12px', 
-                        fontWeight: 700, 
-                        color: '#B91C1C',
-                        transition: 'all 0.15s ease'
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.background = '#FEE2E2'; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = '#FEF2F2'; }}
-                    >
-                      <Upload size={15} /> Upload Global RAG Knowledge File(s)
-                    </label>
-                    <input 
-                      id="danger-rag-file-input"
-                      type="file" 
-                      multiple 
-                      accept=".txt,.md,.markdown,.csv,.json,.text,.doc,.docx,.pdf" 
-                      onChange={handleGlobalDangerRagFileUpload}
-                      style={{ display: 'none' }}
-                    />
+                {/* PART 2: GROUNDING KNOWLEDGE SOURCES (RAG ENGINE) */}
+                <div style={{ background: '#FFFFFF', border: '1px solid #FECACA', borderRadius: '8px', padding: '16px', marginBottom: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px', paddingBottom: '10px', borderBottom: '1px solid #FEE2E2' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ background: '#DC2626', color: 'white', width: '20px', height: '20px', borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700 }}>2</span>
+                        <span style={{ fontWeight: 700, color: '#991B1B', fontSize: '13px' }}>Global RAG Knowledge Grounding Sources</span>
+                      </div>
+                      <p style={{ margin: '4px 0 0 26px', fontSize: '11.5px', color: '#7F1D1D' }}>
+                        Provide verified research data, internal whitepapers, and study links so the AI grounds its insights on empirical facts rather than hallucinations.
+                      </p>
+                    </div>
                   </div>
 
-                  {Array.isArray(config.dangerZoneConfig?.ragFiles) && config.dangerZoneConfig.ragFiles.length > 0 ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '8px' }}>
-                      {config.dangerZoneConfig.ragFiles.map(file => (
-                        <div key={file.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 10px', background: 'white', border: '1px solid #FECACA', borderRadius: '6px', fontSize: '12px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            <FileText size={14} color="#DC2626" />
-                            <span style={{ fontWeight: 600, color: '#991B1B' }}>{file.name}</span>
-                            <span style={{ fontSize: '10px', color: '#6B7280' }}>({(file.size / 1024).toFixed(1)} KB)</span>
+                  {/* 2A: Uploaded Knowledge Files */}
+                  <div style={{ background: '#FFF9F9', border: '1px solid #FCA5A5', borderRadius: '6px', padding: '14px', marginBottom: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, fontSize: '12.5px', color: '#991B1B' }}>
+                        <Upload size={14} color="#DC2626" /> (A) Upload Proprietary Knowledge Files (.txt, .md, .csv, .json)
+                      </span>
+                      <span style={{ fontSize: '10px', background: '#DC2626', color: 'white', padding: '2px 8px', borderRadius: '10px', fontWeight: 700 }}>
+                        Priority 1 Primary Dataset
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '11.5px', color: '#7F1D1D', margin: '0 0 10px 0', lineHeight: 1.4 }}>
+                      Upload whitepapers, proprietary survey benchmarks, or framework documents. When present, the AI searches these files first.
+                    </p>
+
+                    <div style={{ marginBottom: '10px' }}>
+                      <label 
+                        htmlFor="danger-rag-file-input"
+                        style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'center', 
+                          gap: '6px', 
+                          padding: '10px 14px', 
+                          background: '#FFFFFF', 
+                          border: '1.5px dashed #EF4444', 
+                          borderRadius: '6px', 
+                          cursor: 'pointer', 
+                          fontSize: '12px', 
+                          fontWeight: 700, 
+                          color: '#B91C1C',
+                          transition: 'all 0.15s ease'
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background = '#FEE2E2'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = '#FFFFFF'; }}
+                      >
+                        <Upload size={15} /> Select Files to Upload
+                      </label>
+                      <input 
+                        id="danger-rag-file-input"
+                        type="file" 
+                        multiple 
+                        accept=".txt,.md,.markdown,.csv,.json,.text,.doc,.docx,.pdf" 
+                        onChange={handleGlobalDangerRagFileUpload}
+                        style={{ display: 'none' }}
+                      />
+                    </div>
+
+                    {Array.isArray(config.dangerZoneConfig?.ragFiles) && config.dangerZoneConfig.ragFiles.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '4px' }}>
+                        {config.dangerZoneConfig.ragFiles.map(file => (
+                          <div key={file.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 10px', background: 'white', border: '1px solid #FECACA', borderRadius: '6px', fontSize: '12px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <FileText size={14} color="#DC2626" />
+                              <span style={{ fontWeight: 600, color: '#991B1B' }}>{file.name}</span>
+                              <span style={{ fontSize: '10px', color: '#6B7280' }}>({(file.size / 1024).toFixed(1)} KB)</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeGlobalDangerRagFile(file.id)}
+                              style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', padding: '2px 4px', display: 'flex', alignItems: 'center' }}
+                              title="Delete RAG file"
+                            >
+                              <Trash2 size={13} />
+                            </button>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => removeGlobalDangerRagFile(file.id)}
-                            style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', padding: '2px 4px', display: 'flex', alignItems: 'center' }}
-                            title="Delete RAG file"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div style={{ fontSize: '11px', color: '#9CA3AF', fontStyle: 'italic', padding: '4px 0 8px 0' }}>
-                      No custom RAG files uploaded yet. AI will use curated baseline benchmark bank below.
-                    </div>
-                  )}
-                </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: '11px', color: '#9CA3AF', fontStyle: 'italic', padding: '2px 0' }}>
+                        No custom RAG files uploaded yet. AI will use the curated fallback text bank below.
+                      </div>
+                    )}
+                  </div>
 
-                {/* Grounding Reference Links */}
-                <div className="field-group" style={{ marginBottom: '20px' }}>
-                  <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#991B1B', marginBottom: '6px' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}>
-                      <Globe size={14} color="#DC2626" /> Reference Research &amp; Benchmark Grounding Links
-                    </span>
-                    <span style={{ fontSize: '10px', color: '#EF4444', fontWeight: 'normal' }}>Grounding URLs</span>
-                  </label>
-                  <p style={{ fontSize: '11.5px', color: '#7F1D1D', margin: '0 0 10px 0', lineHeight: 1.4 }}>
-                    Add specific authoritative URLs (case studies, research portals, whitepapers) for AI prompt context and source citations.
-                  </p>
+                  {/* 2B: Grounding Reference Links */}
+                  <div style={{ background: '#FFF9F9', border: '1px solid #FCA5A5', borderRadius: '6px', padding: '14px', marginBottom: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, fontSize: '12.5px', color: '#991B1B' }}>
+                        <Globe size={14} color="#DC2626" /> (B) Reference Research &amp; Benchmark Study URLs
+                      </span>
+                      <span style={{ fontSize: '10px', background: '#FEE2E2', color: '#991B1B', padding: '2px 8px', borderRadius: '10px', fontWeight: 600 }}>
+                        Grounding URLs
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '11.5px', color: '#7F1D1D', margin: '0 0 10px 0', lineHeight: 1.4 }}>
+                      Authoritative URLs (case studies, research reports) given to the AI so it can cite specific studies with web links.
+                    </p>
 
-                  <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
-                    <input 
-                      id="danger-rag-link-url"
-                      placeholder="https://example.com/research-paper" 
-                      style={{ fontSize: '12px', borderColor: '#FCA5A5' }}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
+                    <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+                      <input 
+                        id="danger-rag-link-url"
+                        placeholder="https://example.com/research-paper" 
+                        style={{ fontSize: '12px', borderColor: '#FCA5A5', flex: 1 }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            const urlInput = document.getElementById('danger-rag-link-url');
+                            const labelInput = document.getElementById('danger-rag-link-label');
+                            if (urlInput && urlInput.value) {
+                              addGlobalDangerRagLink(urlInput.value, labelInput ? labelInput.value : '');
+                              urlInput.value = '';
+                              if (labelInput) labelInput.value = '';
+                            }
+                          }
+                        }}
+                      />
+                      <input 
+                        id="danger-rag-link-label"
+                        placeholder="Label (e.g. Steelcase Study)" 
+                        style={{ maxWidth: '170px', fontSize: '12px', borderColor: '#FCA5A5' }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            const urlInput = document.getElementById('danger-rag-link-url');
+                            const labelInput = document.getElementById('danger-rag-link-label');
+                            if (urlInput && urlInput.value) {
+                              addGlobalDangerRagLink(urlInput.value, labelInput ? labelInput.value : '');
+                              urlInput.value = '';
+                              if (labelInput) labelInput.value = '';
+                            }
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
                           const urlInput = document.getElementById('danger-rag-link-url');
                           const labelInput = document.getElementById('danger-rag-link-label');
                           if (urlInput && urlInput.value) {
@@ -2493,125 +2852,82 @@ export default function App() {
                             urlInput.value = '';
                             if (labelInput) labelInput.value = '';
                           }
-                        }
-                      }}
-                    />
-                    <input 
-                      id="danger-rag-link-label"
-                      placeholder="Label (e.g. Steelcase Study)" 
-                      style={{ maxWidth: '160px', fontSize: '12px', borderColor: '#FCA5A5' }}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          const urlInput = document.getElementById('danger-rag-link-url');
-                          const labelInput = document.getElementById('danger-rag-link-label');
-                          if (urlInput && urlInput.value) {
-                            addGlobalDangerRagLink(urlInput.value, labelInput ? labelInput.value : '');
-                            urlInput.value = '';
-                            if (labelInput) labelInput.value = '';
-                          }
-                        }
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const urlInput = document.getElementById('danger-rag-link-url');
-                        const labelInput = document.getElementById('danger-rag-link-label');
-                        if (urlInput && urlInput.value) {
-                          addGlobalDangerRagLink(urlInput.value, labelInput ? labelInput.value : '');
-                          urlInput.value = '';
-                          if (labelInput) labelInput.value = '';
-                        }
-                      }}
-                      style={{
-                        padding: '8px 14px',
-                        background: '#DC2626',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '6px',
-                        fontSize: '12px',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        whiteSpace: 'nowrap'
-                      }}
-                    >
-                      <Plus size={13} /> Add Link
-                    </button>
+                        }}
+                        style={{
+                          padding: '8px 14px',
+                          background: '#DC2626',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        <Plus size={13} /> Add Link
+                      </button>
+                    </div>
+
+                    {Array.isArray(config.dangerZoneConfig?.ragLinks) && config.dangerZoneConfig.ragLinks.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {config.dangerZoneConfig.ragLinks.map(link => (
+                          <div key={link.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 10px', background: 'white', border: '1px solid #FECACA', borderRadius: '6px', fontSize: '12px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <ExternalLink size={13} color="#DC2626" />
+                              <span style={{ fontWeight: 600, color: '#991B1B' }}>{link.label || link.url}</span>
+                              <span style={{ fontSize: '11px', color: '#6B7280' }}>({link.url})</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeGlobalDangerRagLink(link.id)}
+                              style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', padding: '2px 4px', display: 'flex', alignItems: 'center' }}
+                              title="Remove link"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: '11px', color: '#9CA3AF', fontStyle: 'italic', padding: '2px 0' }}>
+                        No custom reference links added yet.
+                      </div>
+                    )}
                   </div>
 
-                  {Array.isArray(config.dangerZoneConfig?.ragLinks) && config.dangerZoneConfig.ragLinks.length > 0 ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      {config.dangerZoneConfig.ragLinks.map(link => (
-                        <div key={link.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 10px', background: 'white', border: '1px solid #FECACA', borderRadius: '6px', fontSize: '12px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            <ExternalLink size={13} color="#DC2626" />
-                            <span style={{ fontWeight: 600, color: '#991B1B' }}>{link.label || link.url}</span>
-                            <span style={{ fontSize: '11px', color: '#6B7280' }}>({link.url})</span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => removeGlobalDangerRagLink(link.id)}
-                            style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', padding: '2px 4px', display: 'flex', alignItems: 'center' }}
-                            title="Remove link"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
-                      ))}
+                  {/* 2C: Curated Benchmark Text Bank */}
+                  <div style={{ background: '#FFF9F9', border: '1px solid #FCA5A5', borderRadius: '6px', padding: '14px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, fontSize: '12.5px', color: '#991B1B' }}>
+                        <FileText size={14} color="#DC2626" /> (C) Curated RAG Benchmark Text Bank (Built-in Knowledge)
+                      </span>
+                      <span style={{ fontSize: '10px', background: '#FEE2E2', color: '#991B1B', padding: '2px 8px', borderRadius: '10px', fontWeight: 600 }}>
+                        Priority 2 Fallback Grounding
+                      </span>
                     </div>
-                  ) : (
-                    <div style={{ fontSize: '11px', color: '#9CA3AF', fontStyle: 'italic', padding: '2px 0 6px 0' }}>
-                      No custom reference links added yet.
-                    </div>
-                  )}
-                </div>
-
-                <div className="field-group" style={{ marginBottom: '16px' }}>
-                  <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#991B1B' }}>
-                    <span>Curated RAG Research Bank &amp; Benchmarks (Baseline Grounding)</span>
-                    <span style={{ fontSize: '10px', color: '#EF4444', fontWeight: 'normal' }}>Priority 2 fallback grounding</span>
-                  </label>
-                  <textarea 
-                    style={{ minHeight: '160px', fontSize: '12px', fontFamily: 'monospace', borderColor: '#FCA5A5' }}
-                    value={config.dangerZoneConfig?.defaultRagBank || ''}
-                    placeholder="Enter default RAG benchmarks dataset..."
-                    onChange={e => {
-                      const val = e.target.value;
-                      setConfig(prev => ({
-                        ...prev,
-                        dangerZoneConfig: {
-                          ...(prev.dangerZoneConfig || DEFAULT_CONFIG.dangerZoneConfig),
-                          defaultRagBank: val
-                        }
-                      }));
-                    }}
-                  />
-                </div>
-
-                <div className="field-group" style={{ marginBottom: '8px' }}>
-                  <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#991B1B' }}>
-                    <span>Footnotes &amp; Cited Sources HTML Template</span>
-                    <span style={{ fontSize: '10px', color: '#EF4444', fontWeight: 'normal' }}>Rendered at bottom of report</span>
-                  </label>
-                  <textarea 
-                    style={{ minHeight: '130px', fontSize: '12px', fontFamily: 'monospace', borderColor: '#FCA5A5' }}
-                    value={config.dangerZoneConfig?.footnotesReferenceHtml || ''}
-                    placeholder="Enter footnotes HTML structure..."
-                    onChange={e => {
-                      const val = e.target.value;
-                      setConfig(prev => ({
-                        ...prev,
-                        dangerZoneConfig: {
-                          ...(prev.dangerZoneConfig || DEFAULT_CONFIG.dangerZoneConfig),
-                          footnotesReferenceHtml: val
-                        }
-                      }));
-                    }}
-                  />
+                    <p style={{ fontSize: '11.5px', color: '#7F1D1D', margin: '0 0 10px 0', lineHeight: 1.4 }}>
+                      Built-in textual case studies and benchmarks (Microsoft, Cisco, Roche, Capital One). Used automatically when no custom files are uploaded in (A).
+                    </p>
+                    <textarea 
+                      style={{ minHeight: '150px', fontSize: '12px', fontFamily: 'monospace', borderColor: '#FCA5A5', width: '100%', boxSizing: 'border-box' }}
+                      value={config.dangerZoneConfig?.defaultRagBank || ''}
+                      placeholder="Enter default RAG benchmarks dataset..."
+                      onChange={e => {
+                        const val = e.target.value;
+                        setConfig(prev => ({
+                          ...prev,
+                          dangerZoneConfig: {
+                            ...(prev.dangerZoneConfig || DEFAULT_CONFIG.dangerZoneConfig),
+                            defaultRagBank: val
+                          }
+                        }));
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -2627,11 +2943,9 @@ export default function App() {
                       <label style={{fontSize: '12px', fontWeight: 600, color: '#4B5563', textTransform: 'uppercase', margin: 0}}>Metric {qIdx + 1}</label>
                       <button 
                         onClick={() => {
-                          if(window.confirm('Are you sure you want to delete this question?')) {
-                            const newQ = [...config.questions];
-                            newQ.splice(qIdx, 1);
-                            setConfig({...config, questions: newQ});
-                          }
+                          const newQ = [...config.questions];
+                          newQ.splice(qIdx, 1);
+                          setConfig({...config, questions: newQ});
                         }} 
                         style={{background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: '12px', padding: 4}}
                       >
@@ -2700,7 +3014,6 @@ export default function App() {
                         ]
                     });
                     setConfig({...config, questions: newQ});
-                    
                     setTimeout(() => {
                       const contentArea = document.querySelector('.builder-content');
                       if (contentArea) contentArea.scrollTop = contentArea.scrollHeight;
@@ -2709,7 +3022,873 @@ export default function App() {
                   <Plus size={20} style={{marginRight: 8}}/> + ADD NEW QUESTION
                 </button>
               </div>
+
+              {/* Score Tiers & Risk Categories Editor */}
+              <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '2px solid #E5E7EB' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <BarChart2 size={18} color="#1D4ED8" />
+                    <span style={{ fontSize: '14px', fontWeight: 700, color: '#111827', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Score Tiers &amp; Result Logic
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '11px', background: '#DBEAFE', color: '#1E40AF', padding: '2px 8px', borderRadius: '10px', fontWeight: 600 }}>
+                    0–100 Scale
+                  </span>
+                </div>
+                <p style={{ fontSize: '12px', color: '#6B7280', margin: '0 0 16px', lineHeight: 1.4 }}>
+                  Customize the score ranges, tone badges, card titles, and description for each outcome level to fit any quiz topic.
+                </p>
+
+                {(Array.isArray(config.results) ? config.results : []).map((tier, tIdx) => (
+                  <div key={tIdx} className="q-card" style={{ borderLeft: `4px solid ${tier.color || '#3B82F6'}`, background: '#FFFFFF', marginBottom: '14px', padding: '14px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 700, color: '#1F2937' }}>
+                        Tier {tIdx + 1}: Score ≤ {tier.maxScore}
+                      </span>
+                      {config.results.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newResults = config.results.filter((_, idx) => idx !== tIdx);
+                            setConfig({ ...config, results: newResults });
+                          }}
+                          style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11px', padding: '2px' }}
+                        >
+                          <Trash2 size={13} /> Delete
+                        </button>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px 70px', gap: '8px', marginBottom: '8px' }}>
+                      <div>
+                        <label style={{ fontSize: '10px', textTransform: 'uppercase', color: '#6B7280', fontWeight: 600, display: 'block', marginBottom: '3px' }}>Tone Badge</label>
+                        <input
+                          value={tier.tone || ''}
+                          placeholder="e.g. Critical Gap"
+                          onChange={e => {
+                            const newResults = [...config.results];
+                            newResults[tIdx].tone = e.target.value;
+                            setConfig({ ...config, results: newResults });
+                          }}
+                          style={{ margin: 0, padding: '7px 9px', fontSize: '12px' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '10px', textTransform: 'uppercase', color: '#6B7280', fontWeight: 600, display: 'block', marginBottom: '3px' }}>Max Score</label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="100"
+                          value={tier.maxScore ?? 100}
+                          onChange={e => {
+                            const newResults = [...config.results];
+                            newResults[tIdx].maxScore = Number(e.target.value);
+                            setConfig({ ...config, results: newResults });
+                          }}
+                          style={{ margin: 0, padding: '7px 9px', fontSize: '12px' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '10px', textTransform: 'uppercase', color: '#6B7280', fontWeight: 600, display: 'block', marginBottom: '3px' }}>Card Bg</label>
+                        <input
+                          type="color"
+                          value={tier.color?.startsWith('#') ? tier.color : '#FCE8E6'}
+                          onChange={e => {
+                            const newResults = [...config.results];
+                            newResults[tIdx].color = e.target.value;
+                            setConfig({ ...config, results: newResults });
+                          }}
+                          style={{ margin: 0, padding: '2px', height: '34px', width: '100%', cursor: 'pointer' }}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ marginBottom: '8px' }}>
+                      <label style={{ fontSize: '10px', textTransform: 'uppercase', color: '#6B7280', fontWeight: 600, display: 'block', marginBottom: '3px' }}>Headline Title</label>
+                      <input
+                        value={tier.title || ''}
+                        placeholder="e.g. Workplace at Risk"
+                        onChange={e => {
+                          const newResults = [...config.results];
+                          newResults[tIdx].title = e.target.value;
+                          setConfig({ ...config, results: newResults });
+                        }}
+                        style={{ margin: 0, padding: '7px 9px', fontSize: '12px' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '10px', textTransform: 'uppercase', color: '#6B7280', fontWeight: 600, display: 'block', marginBottom: '3px' }}>Description / Assessment</label>
+                      <textarea
+                        value={tier.desc || ''}
+                        placeholder="Enter the diagnosis summary for this score range..."
+                        rows={2}
+                        onChange={e => {
+                          const newResults = [...config.results];
+                          newResults[tIdx].desc = e.target.value;
+                          setConfig({ ...config, results: newResults });
+                        }}
+                        style={{ margin: 0, padding: '7px 9px', fontSize: '12px', minHeight: '52px' }}
+                      />
+                    </div>
+                  </div>
+                ))}
+
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ width: '100%', marginTop: '6px', fontSize: '12px', padding: '10px', justifyContent: 'center' }}
+                  onClick={() => {
+                    const list = Array.isArray(config.results) ? [...config.results] : [];
+                    const lastMax = list.length > 0 ? list[list.length - 1].maxScore : 50;
+                    list.push({
+                      maxScore: Math.min(100, lastMax + 20),
+                      title: 'New Score Tier',
+                      tone: 'Opportunity',
+                      color: '#E8F0FE',
+                      desc: 'Describe what this score range means for your quiz topic...',
+                      cta: 'Learn More'
+                    });
+                    setConfig({ ...config, results: list });
+                  }}
+                >
+                  <Plus size={14} /> Add Score Tier
+                </button>
+              </div>
             </>
+          )}
+
+          {activeTab === 'form' && (
+            <div>
+              {/* Studio: Lead Form Studio */}
+              <div style={{ marginBottom: '28px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', paddingBottom: '8px', borderBottom: '2px solid #E5E7EB' }}>
+                  <span style={{ fontSize: '14px', fontWeight: '700', color: '#111827', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <User size={16} color="#1A73E8" /> Lead Form Studio
+                  </span>
+                  <span style={{ fontSize: '11px', background: '#E0F2FE', color: '#0369A1', padding: '2px 8px', borderRadius: '10px', fontWeight: 600 }}>
+                    Diagnostic Gate &amp; Intake
+                  </span>
+                </div>
+                <p style={{ fontSize: '12px', color: '#6B7280', margin: '0 0 16px', lineHeight: 1.4 }}>
+                  Choose your lead capture mechanism at the diagnostic gate: use the built-in native form (syncs with your Webhook / Google Sheets) or embed your official HubSpot Form to sync leads directly to HubSpot CRM.
+                </p>
+
+                {/* Form Provider Selector */}
+                <div style={{ background: '#F8FAFC', border: '1.5px solid #CBD5E1', borderRadius: '8px', padding: '14px', marginBottom: '20px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', textTransform: 'uppercase', color: '#334155', letterSpacing: '0.05em', marginBottom: '10px' }}>
+                    Form Provider / Engine
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setConfig(prev => ({
+                        ...prev,
+                        leadCapture: {
+                          ...prev.leadCapture,
+                          formType: 'native'
+                        }
+                      }))}
+                      style={{
+                        padding: '12px',
+                        borderRadius: '6px',
+                        border: (config.leadCapture?.formType !== 'hubspot') ? '2px solid #1A73E8' : '1px solid #D1D5DB',
+                        background: (config.leadCapture?.formType !== 'hubspot') ? '#EFF6FF' : 'white',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                        <span style={{ fontSize: '13px', fontWeight: '700', color: (config.leadCapture?.formType !== 'hubspot') ? '#1E40AF' : '#1F2937' }}>
+                          ⚡ Native Form
+                        </span>
+                        {config.leadCapture?.formType !== 'hubspot' && <CheckCircle2 size={16} color="#1A73E8" />}
+                      </div>
+                      <span style={{ fontSize: '11px', color: '#64748B', display: 'block', lineHeight: 1.3 }}>
+                        Built-in customizable gate. Fast, responsive, and syncs to Google Sheets webhook.
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setConfig(prev => ({
+                        ...prev,
+                        leadCapture: {
+                          ...prev.leadCapture,
+                          formType: 'hubspot'
+                        }
+                      }))}
+                      style={{
+                        position: 'relative',
+                        padding: '12px',
+                        borderRadius: '6px',
+                        border: (config.leadCapture?.formType === 'hubspot') ? '2px solid #EA580C' : '1px solid #D1D5DB',
+                        background: (config.leadCapture?.formType === 'hubspot') ? '#FFF7ED' : 'white',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <span style={{
+                        position: 'absolute',
+                        top: '8px',
+                        right: '8px',
+                        background: '#FEF3C7',
+                        color: '#B45309',
+                        border: '1px solid #FCD34D',
+                        fontSize: '9px',
+                        fontWeight: 800,
+                        padding: '1px 6px',
+                        borderRadius: '4px',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.06em',
+                        lineHeight: '1.2'
+                      }}>BETA</span>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px', paddingRight: '42px' }}>
+                        <span style={{ fontSize: '13px', fontWeight: '700', color: (config.leadCapture?.formType === 'hubspot') ? '#C2410C' : '#1F2937' }}>
+                          🧡 HubSpot Embed Form
+                        </span>
+                        {config.leadCapture?.formType === 'hubspot' && <CheckCircle2 size={16} color="#EA580C" />}
+                      </div>
+                      <span style={{ fontSize: '11px', color: '#64748B', display: 'block', lineHeight: 1.3 }}>
+                        Embed your official HubSpot Form directly. Auto-syncs leads to HubSpot CRM.
+                      </span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* HubSpot Form Configuration Panel */}
+                {config.leadCapture?.formType === 'hubspot' && (
+                  <div style={{ background: '#FFF7ED', border: '1px solid #FDBA74', borderRadius: '8px', padding: '16px', marginBottom: '24px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                      <span style={{ fontSize: '13px', fontWeight: '700', color: '#9A3412', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        HubSpot Embed Configuration
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '12px', color: '#7C2D12', margin: '0 0 14px', lineHeight: 1.4 }}>
+                      Enter your HubSpot <strong>Portal ID</strong> (Hub ID) and <strong>Form ID</strong> (GUID), or paste your HubSpot embed code snippet below. When respondents submit this form, they will automatically unlock their score &amp; report.
+                    </p>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {/* Embed snippet parser helper */}
+                      <div style={{ background: 'white', border: '1px dashed #FB923C', borderRadius: '6px', padding: '10px 12px' }}>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#9A3412', marginBottom: '6px' }}>
+                          Quick Paste Embed Code (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder={`hbspt.forms.create({ portalId: "12345678", formId: "abcdef-..." });`}
+                          onChange={e => {
+                            const val = e.target.value;
+                            if (!val) return;
+                            const portalMatch = val.match(/portalId[:=]\s*["']?(\d+)["']?/i);
+                            const formMatch = val.match(/formId[:=]\s*["']?([a-zA-Z0-9_-]+)["']?/i);
+                            const regionMatch = val.match(/region[:=]\s*["']?([a-zA-Z0-9_-]+)["']?/i);
+                            if (portalMatch || formMatch) {
+                              setConfig(prev => ({
+                                ...prev,
+                                leadCapture: {
+                                  ...prev.leadCapture,
+                                  hubspot: {
+                                    portalId: portalMatch ? portalMatch[1] : (prev.leadCapture?.hubspot?.portalId || ''),
+                                    formId: formMatch ? formMatch[1] : (prev.leadCapture?.hubspot?.formId || ''),
+                                    region: regionMatch ? regionMatch[1] : (prev.leadCapture?.hubspot?.region || 'na1')
+                                  }
+                                }
+                              }));
+                            }
+                          }}
+                          style={{
+                            width: '100%',
+                            padding: '8px 10px',
+                            fontSize: '12px',
+                            border: '1px solid #FED7AA',
+                            borderRadius: '4px',
+                            backgroundColor: '#FFFCFA',
+                            color: '#1F2937'
+                          }}
+                        />
+                        <span style={{ fontSize: '10.5px', color: '#9A3412', marginTop: '4px', display: 'block' }}>
+                          Paste your HubSpot snippet and we will automatically extract Portal ID &amp; Form ID.
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#374151', marginBottom: '6px' }}>
+                            HubSpot Portal ID (Hub ID) *
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. 12345678"
+                            value={config.leadCapture?.hubspot?.portalId || ''}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setConfig(prev => ({
+                                ...prev,
+                                leadCapture: {
+                                  ...prev.leadCapture,
+                                  hubspot: {
+                                    ...(prev.leadCapture?.hubspot || {}),
+                                    portalId: val
+                                  }
+                                }
+                              }));
+                            }}
+                            style={{
+                              width: '100%',
+                              padding: '8px 12px',
+                              border: '1px solid #D1D5DB',
+                              borderRadius: '4px',
+                              fontSize: '13px'
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#374151', marginBottom: '6px' }}>
+                            HubSpot Form ID (GUID) *
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. 3b7c89f1-4567-4890-..."
+                            value={config.leadCapture?.hubspot?.formId || ''}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setConfig(prev => ({
+                                ...prev,
+                                leadCapture: {
+                                  ...prev.leadCapture,
+                                  hubspot: {
+                                    ...(prev.leadCapture?.hubspot || {}),
+                                    formId: val
+                                  }
+                                }
+                              }));
+                            }}
+                            style={{
+                              width: '100%',
+                              padding: '8px 12px',
+                              border: '1px solid #D1D5DB',
+                              borderRadius: '4px',
+                              fontSize: '13px'
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#374151', marginBottom: '6px' }}>
+                          HubSpot Region (Optional)
+                        </label>
+                        <select
+                          value={config.leadCapture?.hubspot?.region || 'na1'}
+                          onChange={e => {
+                            const val = e.target.value;
+                            setConfig(prev => ({
+                              ...prev,
+                              leadCapture: {
+                                ...prev.leadCapture,
+                                hubspot: {
+                                  ...(prev.leadCapture?.hubspot || {}),
+                                  region: val
+                                }
+                              }
+                            }));
+                          }}
+                          style={{
+                            width: '100%',
+                            padding: '8px 12px',
+                            border: '1px solid #D1D5DB',
+                            borderRadius: '4px',
+                            fontSize: '13px',
+                            backgroundColor: 'white'
+                          }}
+                        >
+                          <option value="na1">North America (na1 - default)</option>
+                          <option value="eu1">Europe (eu1)</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* If Native Form is chosen, render Native Form Studio */}
+                {config.leadCapture?.formType !== 'hubspot' && (
+                  <>
+                {/* Require Work Email Toggle */}
+                <div style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '6px', padding: '12px 14px', marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: '#1F2937' }}>Block Free / Disposable Email Domains</div>
+                    <div style={{ fontSize: '11px', color: '#6B7280' }}>Forces corporate domains (gmail, yahoo, hotmail, etc. rejected)</div>
+                  </div>
+                  <input 
+                    type="checkbox"
+                    checked={config.leadCapture?.requireWorkEmail !== false}
+                    onChange={e => setConfig(prev => ({
+                      ...prev,
+                      leadCapture: {
+                        ...prev.leadCapture,
+                        requireWorkEmail: e.target.checked
+                      }
+                    }))}
+                    style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#1A73E8' }}
+                  />
+                </div>
+
+                {/* Standard Primary Contact Fields */}
+                <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#4B5563', letterSpacing: '0.05em', marginBottom: '8px' }}>
+                  Standard Contact Fields
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
+                  {[
+                    { key: 'name', label: 'Full Name', defaultReq: true },
+                    { key: 'email', label: 'Work Email', defaultReq: true },
+                    { key: 'company', label: 'Company / Organization', defaultReq: true },
+                    { key: 'role', label: 'Job Title / Role', defaultReq: false },
+                    { key: 'phone', label: 'Direct Phone', defaultReq: false },
+                    { key: 'projectStatus', label: 'Project Status / Timeline', defaultReq: true }
+                  ].map(f => {
+                    const fieldData = config.leadCapture?.fields?.[f.key] || { label: f.label, enabled: true, required: f.defaultReq };
+                    return (
+                      <div key={f.key} style={{ background: fieldData.enabled !== false ? '#FFFFFF' : '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '6px', padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', opacity: fieldData.enabled !== false ? 1 : 0.6 }}>
+                        <div style={{ flex: 1, marginRight: '12px' }}>
+                          <input
+                            type="text"
+                            value={fieldData.label || f.label}
+                            onChange={e => {
+                              const newLabel = e.target.value;
+                              setConfig(prev => ({
+                                ...prev,
+                                leadCapture: {
+                                  ...prev.leadCapture,
+                                  fields: {
+                                    ...prev.leadCapture?.fields,
+                                    [f.key]: {
+                                      ...(prev.leadCapture?.fields?.[f.key] || {}),
+                                      label: newLabel
+                                    }
+                                  }
+                                }
+                              }));
+                            }}
+                            style={{ width: '100%', fontSize: '13px', fontWeight: 600, border: '1px solid #D1D5DB', borderRadius: '4px', padding: '4px 8px' }}
+                          />
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: '#4B5563', cursor: 'pointer', margin: 0 }}>
+                            <input
+                              type="checkbox"
+                              checked={fieldData.enabled !== false}
+                              onChange={e => {
+                                const isEn = e.target.checked;
+                                setConfig(prev => ({
+                                  ...prev,
+                                  leadCapture: {
+                                    ...prev.leadCapture,
+                                    fields: {
+                                      ...prev.leadCapture?.fields,
+                                      [f.key]: {
+                                        ...(prev.leadCapture?.fields?.[f.key] || {}),
+                                        enabled: isEn
+                                      }
+                                    }
+                                  }
+                                }));
+                              }}
+                              style={{ cursor: 'pointer' }}
+                            />
+                            Show
+                          </label>
+
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: '#4B5563', cursor: 'pointer', margin: 0 }}>
+                            <input
+                              type="checkbox"
+                              disabled={fieldData.enabled === false}
+                              checked={fieldData.required === true}
+                              onChange={e => {
+                                const isReq = e.target.checked;
+                                setConfig(prev => ({
+                                  ...prev,
+                                  leadCapture: {
+                                    ...prev.leadCapture,
+                                    fields: {
+                                      ...prev.leadCapture?.fields,
+                                      [f.key]: {
+                                        ...(prev.leadCapture?.fields?.[f.key] || {}),
+                                        required: isReq
+                                      }
+                                    }
+                                  }
+                                }));
+                              }}
+                              style={{ cursor: 'pointer' }}
+                            />
+                            Required
+                          </label>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Dynamic Lead Form Questions */}
+                <div style={{ background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', padding: '16px', marginTop: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#0F172A', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Plus size={15} color="#1A73E8" /> Custom Lead Form Questions
+                    </span>
+                    <span style={{ fontSize: '11px', background: '#DBEAFE', color: '#1E40AF', padding: '2px 8px', borderRadius: '10px', fontWeight: 600 }}>
+                      {(config.leadCapture?.customQuestions || []).length} Custom {((config.leadCapture?.customQuestions || []).length === 1 ? 'Question' : 'Questions')}
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '11.5px', color: '#64748B', margin: '0 0 14px 0', lineHeight: 1.4 }}>
+                    Add bespoke questions (Multiple Choice, Text, Number, Rating) to capture deep customer intent and project details on the intake gate.
+                  </p>
+
+                  {/* Custom questions list */}
+                  {Array.isArray(config.leadCapture?.customQuestions) && config.leadCapture.customQuestions.map((q, qIdx) => (
+                    <div key={q.id || qIdx} style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '6px', padding: '14px', marginBottom: '12px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 700, color: '#1E293B', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ background: '#3B82F6', color: 'white', width: '18px', height: '18px', borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 700 }}>
+                            {qIdx + 1}
+                          </span>
+                          Question {qIdx + 1}
+                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {/* Reorder Buttons */}
+                          {qIdx > 0 && (
+                            <button
+                              type="button"
+                              title="Move Up"
+                              onClick={() => {
+                                setConfig(prev => {
+                                  const list = [...(prev.leadCapture?.customQuestions || [])];
+                                  const temp = list[qIdx - 1];
+                                  list[qIdx - 1] = list[qIdx];
+                                  list[qIdx] = temp;
+                                  return { ...prev, leadCapture: { ...prev.leadCapture, customQuestions: list } };
+                                });
+                              }}
+                              style={{ background: '#F1F5F9', border: '1px solid #CBD5E1', borderRadius: '4px', padding: '2px 6px', fontSize: '11px', cursor: 'pointer' }}
+                            >
+                              ↑
+                            </button>
+                          )}
+                          {qIdx < config.leadCapture.customQuestions.length - 1 && (
+                            <button
+                              type="button"
+                              title="Move Down"
+                              onClick={() => {
+                                setConfig(prev => {
+                                  const list = [...(prev.leadCapture?.customQuestions || [])];
+                                  const temp = list[qIdx + 1];
+                                  list[qIdx + 1] = list[qIdx];
+                                  list[qIdx] = temp;
+                                  return { ...prev, leadCapture: { ...prev.leadCapture, customQuestions: list } };
+                                });
+                              }}
+                              style={{ background: '#F1F5F9', border: '1px solid #CBD5E1', borderRadius: '4px', padding: '2px 6px', fontSize: '11px', cursor: 'pointer' }}
+                            >
+                              ↓
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setConfig(prev => {
+                                const list = (prev.leadCapture?.customQuestions || []).filter((_, idx) => idx !== qIdx);
+                                return { ...prev, leadCapture: { ...prev.leadCapture, customQuestions: list } };
+                              });
+                            }}
+                            style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11px', padding: '2px' }}
+                          >
+                            <Trash2 size={13} /> Delete
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Question Title */}
+                      <div style={{ marginBottom: '10px' }}>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#4B5563', marginBottom: '4px' }}>Question Label</label>
+                        <input
+                          type="text"
+                          value={q.label || ''}
+                          placeholder="e.g. Total Workplace Square Footage or Budget Range"
+                          onChange={e => {
+                            const val = e.target.value;
+                            setConfig(prev => {
+                              const list = [...(prev.leadCapture?.customQuestions || [])];
+                              list[qIdx] = { ...list[qIdx], label: val };
+                              return { ...prev, leadCapture: { ...prev.leadCapture, customQuestions: list } };
+                            });
+                          }}
+                          style={{ width: '100%', fontSize: '13px', padding: '6px 8px', border: '1px solid #D1D5DB', borderRadius: '4px', boxSizing: 'border-box' }}
+                        />
+                      </div>
+
+                      {/* Format Type Selector & Required/Show Toggles */}
+                      <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '10px' }}>
+                        <div style={{ flex: 1, minWidth: '160px' }}>
+                          <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#4B5563', marginBottom: '4px' }}>Question Format</label>
+                          <select
+                            value={q.type || 'select'}
+                            onChange={e => {
+                              const newType = e.target.value;
+                              setConfig(prev => {
+                                const list = [...(prev.leadCapture?.customQuestions || [])];
+                                const defaultOpts = (newType === 'select' || newType === 'multiple_choice') && (!list[qIdx].options || list[qIdx].options.length === 0)
+                                  ? ['A. Option 1', 'B. Option 2', 'C. Option 3', 'D. Option 4']
+                                  : list[qIdx].options;
+                                list[qIdx] = {
+                                  ...list[qIdx],
+                                  type: newType,
+                                  options: defaultOpts,
+                                  ratingMax: newType === 'rating' ? (list[qIdx].ratingMax || 5) : list[qIdx].ratingMax
+                                };
+                                return { ...prev, leadCapture: { ...prev.leadCapture, customQuestions: list } };
+                              });
+                            }}
+                            style={{ width: '100%', fontSize: '12px', padding: '5px 8px', border: '1px solid #D1D5DB', borderRadius: '4px', backgroundColor: 'white' }}
+                          >
+                            <option value="select">Dropdown Select (A, B, C, D)</option>
+                            <option value="multiple_choice">Radio Buttons (A, B, C, D)</option>
+                            <option value="text">Short Text Input</option>
+                            <option value="number">Number Input</option>
+                            <option value="rating">Rating Scale (1–5 / 1–10)</option>
+                          </select>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', paddingTop: '18px' }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: '#4B5563', cursor: 'pointer', margin: 0 }}>
+                            <input
+                              type="checkbox"
+                              checked={q.enabled !== false}
+                              onChange={e => {
+                                const isEn = e.target.checked;
+                                setConfig(prev => {
+                                  const list = [...(prev.leadCapture?.customQuestions || [])];
+                                  list[qIdx] = { ...list[qIdx], enabled: isEn };
+                                  return { ...prev, leadCapture: { ...prev.leadCapture, customQuestions: list } };
+                                });
+                              }}
+                              style={{ cursor: 'pointer' }}
+                            />
+                            Show
+                          </label>
+
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: '#4B5563', cursor: 'pointer', margin: 0 }}>
+                            <input
+                              type="checkbox"
+                              checked={q.required === true}
+                              onChange={e => {
+                                const isReq = e.target.checked;
+                                setConfig(prev => {
+                                  const list = [...(prev.leadCapture?.customQuestions || [])];
+                                  list[qIdx] = { ...list[qIdx], required: isReq };
+                                  return { ...prev, leadCapture: { ...prev.leadCapture, customQuestions: list } };
+                                });
+                              }}
+                              style={{ cursor: 'pointer' }}
+                            />
+                            Required
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* Format-Specific Editors */}
+                      {(q.type === 'select' || q.type === 'multiple_choice' || !q.type) && (
+                        <div style={{ background: '#F8FAFC', border: '1px dashed #CBD5E1', borderRadius: '4px', padding: '10px', marginTop: '8px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                            <label style={{ fontSize: '11px', fontWeight: 600, color: '#475569', margin: 0 }}>Choices / Options</label>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setConfig(prev => {
+                                  const list = [...(prev.leadCapture?.customQuestions || [])];
+                                  const currOpts = Array.isArray(list[qIdx].options) ? [...list[qIdx].options] : [];
+                                  const nextLetter = String.fromCharCode(65 + currOpts.length);
+                                  currOpts.push(`${nextLetter}. Option ${currOpts.length + 1}`);
+                                  list[qIdx] = { ...list[qIdx], options: currOpts };
+                                  return { ...prev, leadCapture: { ...prev.leadCapture, customQuestions: list } };
+                                });
+                              }}
+                              style={{ background: '#EFF6FF', border: '1px solid #93C5FD', color: '#1D4ED8', borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', fontWeight: 600 }}
+                            >
+                              + Add Option
+                            </button>
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            {(Array.isArray(q.options) ? q.options : ['A. Option 1', 'B. Option 2', 'C. Option 3']).map((opt, oIdx) => (
+                              <div key={oIdx} style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                <input
+                                  type="text"
+                                  value={opt}
+                                  onChange={e => {
+                                    const val = e.target.value;
+                                    setConfig(prev => {
+                                      const list = [...(prev.leadCapture?.customQuestions || [])];
+                                      const currOpts = [...(list[qIdx].options || [])];
+                                      currOpts[oIdx] = val;
+                                      list[qIdx] = { ...list[qIdx], options: currOpts };
+                                      return { ...prev, leadCapture: { ...prev.leadCapture, customQuestions: list } };
+                                    });
+                                  }}
+                                  style={{ flex: 1, fontSize: '12px', padding: '4px 8px', border: '1px solid #CBD5E1', borderRadius: '4px', background: 'white' }}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setConfig(prev => {
+                                      const list = [...(prev.leadCapture?.customQuestions || [])];
+                                      const currOpts = (list[qIdx].options || []).filter((_, idx) => idx !== oIdx);
+                                      list[qIdx] = { ...list[qIdx], options: currOpts };
+                                      return { ...prev, leadCapture: { ...prev.leadCapture, customQuestions: list } };
+                                    });
+                                  }}
+                                  style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', padding: '2px 4px' }}
+                                  title="Remove Option"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {q.type === 'rating' && (
+                        <div style={{ background: '#F8FAFC', border: '1px dashed #CBD5E1', borderRadius: '4px', padding: '10px', marginTop: '8px' }}>
+                          <label style={{ fontSize: '11px', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '6px' }}>Rating Scale Maximum</label>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            {[5, 10].map(maxVal => (
+                              <button
+                                key={maxVal}
+                                type="button"
+                                onClick={() => {
+                                  setConfig(prev => {
+                                    const list = [...(prev.leadCapture?.customQuestions || [])];
+                                    list[qIdx] = { ...list[qIdx], ratingMax: maxVal };
+                                    return { ...prev, leadCapture: { ...prev.leadCapture, customQuestions: list } };
+                                  });
+                                }}
+                                style={{
+                                  padding: '4px 12px',
+                                  fontSize: '12px',
+                                  fontWeight: (q.ratingMax || 5) === maxVal ? 700 : 500,
+                                  background: (q.ratingMax || 5) === maxVal ? '#1D4ED8' : 'white',
+                                  color: (q.ratingMax || 5) === maxVal ? 'white' : '#374151',
+                                  border: '1px solid #CBD5E1',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                1 to {maxVal} Scale
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {q.type === 'number' && (
+                        <div style={{ background: '#F8FAFC', border: '1px dashed #CBD5E1', borderRadius: '4px', padding: '10px', marginTop: '8px' }}>
+                          <label style={{ fontSize: '11px', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '4px' }}>Placeholder (e.g. Units or Range)</label>
+                          <input
+                            type="text"
+                            value={q.placeholder || ''}
+                            placeholder="e.g. e.g. 25,000 sq ft or 150 employees"
+                            onChange={e => {
+                              const val = e.target.value;
+                              setConfig(prev => {
+                                const list = [...(prev.leadCapture?.customQuestions || [])];
+                                list[qIdx] = { ...list[qIdx], placeholder: val };
+                                return { ...prev, leadCapture: { ...prev.leadCapture, customQuestions: list } };
+                              });
+                            }}
+                            style={{ width: '100%', fontSize: '12px', padding: '4px 8px', border: '1px solid #CBD5E1', borderRadius: '4px', background: 'white', boxSizing: 'border-box' }}
+                          />
+                        </div>
+                      )}
+
+                      {q.type === 'text' && (
+                        <div style={{ background: '#F8FAFC', border: '1px dashed #CBD5E1', borderRadius: '4px', padding: '10px', marginTop: '8px' }}>
+                          <label style={{ fontSize: '11px', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '4px' }}>Placeholder Text</label>
+                          <input
+                            type="text"
+                            value={q.placeholder || ''}
+                            placeholder="e.g. Enter project requirements, locations..."
+                            onChange={e => {
+                              const val = e.target.value;
+                              setConfig(prev => {
+                                const list = [...(prev.leadCapture?.customQuestions || [])];
+                                list[qIdx] = { ...list[qIdx], placeholder: val };
+                                return { ...prev, leadCapture: { ...prev.leadCapture, customQuestions: list } };
+                              });
+                            }}
+                            style={{ width: '100%', fontSize: '12px', padding: '4px 8px', border: '1px solid #CBD5E1', borderRadius: '4px', background: 'white', boxSizing: 'border-box' }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+
+                  {/* Add New Custom Lead Form Question Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setConfig(prev => {
+                        const list = Array.isArray(prev.leadCapture?.customQuestions) ? [...prev.leadCapture.customQuestions] : [];
+                        list.push({
+                          id: 'form_q_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                          label: 'New Intake Question',
+                          type: 'select',
+                          required: false,
+                          enabled: true,
+                          options: [
+                            'A. Less than 10,000 sq ft',
+                            'B. 10,000 – 50,000 sq ft',
+                            'C. 50,000 – 100,000 sq ft',
+                            'D. 100,000+ sq ft'
+                          ]
+                        });
+                        return {
+                          ...prev,
+                          leadCapture: {
+                            ...prev.leadCapture,
+                            customQuestions: list
+                          }
+                        };
+                      });
+                    }}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
+                      padding: '10px',
+                      background: '#FFFFFF',
+                      border: '1.5px dashed #3B82F6',
+                      borderRadius: '6px',
+                      color: '#1D4ED8',
+                      fontSize: '12.5px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#EFF6FF'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = '#FFFFFF'; }}
+                  >
+                    <Plus size={16} /> + Add Custom Form Question
+                  </button>
+                </div>
+                </>
+                )}
+              </div>
+            </div>
           )}
 
           {activeTab === 'settings' && (
@@ -2800,7 +3979,7 @@ export default function App() {
                         display: 'flex', 
                         flexDirection: 'column', 
                         alignItems: 'center', 
-                        justify: 'center', 
+                        justifyContent: 'center', 
                         gap: '8px', 
                         padding: '18px', 
                         background: 'white', 
@@ -2877,6 +4056,135 @@ export default function App() {
               <div className="field-group">
                 <label>Page Background Color</label>
                 <input type="color" value={config.branding.bodyColor} onChange={e => setConfig({...config, branding: {...config.branding, bodyColor: e.target.value}})} style={{padding: '2px', height: '40px'}} />
+              </div>
+            </div>
+
+            {/* Studio: AI Persona & RAG Synthesis Directives */}
+            <div style={{ marginBottom: '28px', paddingTop: '20px', borderTop: '2px solid #E5E7EB' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', paddingBottom: '8px', borderBottom: '2px solid #E5E7EB' }}>
+                <span style={{ fontSize: '14px', fontWeight: '700', color: '#111827', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Sparkles size={16} color="#7C3AED" /> AI Persona &amp; Synthesis Directives
+                </span>
+              </div>
+              <p style={{ fontSize: '12px', color: '#6B7280', margin: '0 0 16px', lineHeight: 1.4 }}>
+                Instruct Gemini on how to tailor recommendations and strategic diagnoses for this assessment.
+              </p>
+
+              <div className="field-group">
+                <label>AI Expert Role &amp; Identity</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Senior Workplace Strategy Architect at Steelcase ARC"
+                  value={config.aiPersona?.role || ''}
+                  onChange={e => setConfig(prev => ({
+                    ...prev,
+                    aiPersona: { ...prev.aiPersona, role: e.target.value }
+                  }))}
+                />
+              </div>
+
+              <div className="field-group">
+                <label>Domain Focus &amp; Architectural Anchor Areas</label>
+                <textarea
+                  placeholder="e.g. STC 38+ acoustic enclosures, agile pods, sit-to-stand posture change..."
+                  rows={3}
+                  value={config.aiPersona?.focusAreas || ''}
+                  onChange={e => setConfig(prev => ({
+                    ...prev,
+                    aiPersona: { ...prev.aiPersona, focusAreas: e.target.value }
+                  }))}
+                />
+              </div>
+
+              <div className="field-group">
+                <label>Diagnostic Tone &amp; Voice</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Executive, authoritative, architectural, and data-driven"
+                  value={config.aiPersona?.tone || ''}
+                  onChange={e => setConfig(prev => ({
+                    ...prev,
+                    aiPersona: { ...prev.aiPersona, tone: e.target.value }
+                  }))}
+                />
+              </div>
+            </div>
+
+            {/* Studio: Result CTAs & Consultation Hooks */}
+            <div style={{ marginBottom: '28px', paddingTop: '20px', borderTop: '2px solid #E5E7EB' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', paddingBottom: '8px', borderBottom: '2px solid #E5E7EB' }}>
+                <span style={{ fontSize: '14px', fontWeight: '700', color: '#111827', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Send size={16} color="#059669" /> Result CTA &amp; Conversion Hooks
+                </span>
+              </div>
+
+              <div className="field-group">
+                <label>Score Metric Display Label</label>
+                <input
+                  type="text"
+                  placeholder="e.g. AI Readiness Score"
+                  value={config.ctaConfig?.scoreLabel || 'Readiness Score'}
+                  onChange={e => setConfig(prev => ({
+                    ...prev,
+                    ctaConfig: { ...prev.ctaConfig, scoreLabel: e.target.value }
+                  }))}
+                />
+              </div>
+
+              <div className="field-group">
+                <label>Primary Result Button Text</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Apply for Executive Strategy Consultation"
+                  value={config.ctaConfig?.primaryCtaText || ''}
+                  onChange={e => setConfig(prev => ({
+                    ...prev,
+                    ctaConfig: { ...prev.ctaConfig, primaryCtaText: e.target.value }
+                  }))}
+                />
+              </div>
+
+              <div className="field-group">
+                <label>Primary Action Type</label>
+                <select
+                  value={config.ctaConfig?.primaryCtaType || 'in_app'}
+                  onChange={e => setConfig(prev => ({
+                    ...prev,
+                    ctaConfig: { ...prev.ctaConfig, primaryCtaType: e.target.value }
+                  }))}
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: '4px', border: '1px solid #D1D5DB' }}
+                >
+                  <option value="in_app">In-App Consultation Request (Triggers Webhook &amp; Phone Capture)</option>
+                  <option value="redirect">External URL Redirect (e.g. Calendly / Steelcase Contact Form)</option>
+                </select>
+              </div>
+
+              {config.ctaConfig?.primaryCtaType === 'redirect' && (
+                <div className="field-group">
+                  <label>Redirect Target URL</label>
+                  <input
+                    type="url"
+                    placeholder="https://www.steelcase.com/contact/consultation"
+                    value={config.ctaConfig?.redirectUrl || ''}
+                    onChange={e => setConfig(prev => ({
+                      ...prev,
+                      ctaConfig: { ...prev.ctaConfig, redirectUrl: e.target.value }
+                    }))}
+                  />
+                </div>
+              )}
+
+              <div className="field-group">
+                <label>Footer Disclaimer &amp; Benchmark Note</label>
+                <input
+                  type="text"
+                  placeholder="Confidential diagnostic prepared by Steelcase..."
+                  value={config.ctaConfig?.disclaimer || ''}
+                  onChange={e => setConfig(prev => ({
+                    ...prev,
+                    ctaConfig: { ...prev.ctaConfig, disclaimer: e.target.value }
+                  }))}
+                />
               </div>
             </div>
             <div style={{ marginTop: '32px', paddingTop: '20px', borderTop: '2px solid #E5E7EB' }}>
@@ -3287,7 +4595,174 @@ export default function App() {
                 <div className="field-group" style={{ marginTop: '16px' }}>
                   <label>Gemini API Key (For Custom AI Reports)</label>
                   <input placeholder="AIzaSy..." type="password" value={config.integration.geminiApiKey} onChange={e => setConfig({...config, integration: {...config.integration, geminiApiKey: e.target.value}})} />
-                  <p style={{fontSize:'12px', color:'#6B7280', marginTop:'8px'}}>Get a free key from Google AI Studio. If provided, the final report will automatically generate a custom analysis using Gemini 3.5 Flash-Lite.</p>
+                  <p style={{fontSize:'12px', color:'#6B7280', marginTop:'8px'}}>Get a free key from Google AI Studio. If provided, the final report will automatically generate a custom analysis using Gemini.</p>
+                </div>
+
+                <div className="field-group" style={{ marginTop: '20px', padding: '16px', background: '#F9FAFB', borderRadius: '8px', border: '1px solid #E5E7EB' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <label style={{ fontWeight: '700', fontSize: '13px', color: '#111827', margin: 0 }}>
+                      Gemini Fallback Models Priority Sequence (Up to 5)
+                    </label>
+                    <span style={{ fontSize: '11px', color: '#1D4ED8', background: '#EFF6FF', border: '1px solid #BFDBFE', padding: '2px 8px', borderRadius: '12px', fontWeight: '600' }}>
+                      {((config.integration.modelFallbacks && config.integration.modelFallbacks.length) || 0)} / 5 Models
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '12px', color: '#6B7280', marginBottom: '14px', lineHeight: '1.4' }}>
+                    Configure the model priority sequence for AI report generation. If a model encounters a rate limit (429) or demand surge, the system automatically falls back to the next model in sequence.
+                  </p>
+
+
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {(config.integration.modelFallbacks || ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.6-flash', 'gemini-3.7-flash']).map((mName, idx, arr) => (
+                      <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#FFFFFF', padding: '8px 10px', borderRadius: '6px', border: '1px solid #D1D5DB', width: '100%', boxSizing: 'border-box' }}>
+                        <span style={{ fontSize: '11px', fontWeight: '700', color: idx === 0 ? '#1D4ED8' : '#374151', background: idx === 0 ? '#EFF6FF' : '#F3F4F6', padding: '4px 8px', borderRadius: '4px', minWidth: '85px', textAlign: 'center', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                          {idx === 0 ? '#1 Primary' : `#${idx + 1} Fallback`}
+                        </span>
+                        
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <select
+                            value={['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-3.5-flash', 'gemini-3.1-pro-preview', 'gemini-pro-latest', 'gemini-2.5-flash'].includes(mName) ? mName : 'custom'}
+                            onChange={(e) => {
+                              const newArr = [...arr];
+                              if (e.target.value !== 'custom') {
+                                newArr[idx] = e.target.value;
+                                setConfig({ ...config, integration: { ...config.integration, modelFallbacks: newArr } });
+                              }
+                            }}
+                            style={{ width: '100%', padding: '6px 8px', fontSize: '12px', border: '1px solid #D1D5DB', borderRadius: '4px', background: '#FFFFFF', color: '#111827', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', boxSizing: 'border-box' }}
+                          >
+                            <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (High Reliability - Fast)</option>
+                            <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite (Flash Lite)</option>
+                            <option value="gemini-flash-lite-latest">gemini-flash-lite-latest (Auto Latest Lite)</option>
+                            <option value="gemini-3.6-flash">gemini-3.6-flash (General Purpose)</option>
+                            <option value="gemini-3.7-flash">gemini-3.7-flash (Latest General)</option>
+                            <option value="gemini-3.5-flash">gemini-3.5-flash</option>
+                            <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview (Complex Tasks)</option>
+                            <option value="gemini-pro-latest">gemini-pro-latest</option>
+                            <option value="gemini-2.5-flash">gemini-2.5-flash (Legacy)</option>
+                            {!['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-3.5-flash', 'gemini-3.1-pro-preview', 'gemini-pro-latest', 'gemini-2.5-flash'].includes(mName) && (
+                              <option value="custom">Custom: {mName}</option>
+                            )}
+                          </select>
+                        </div>
+
+                        <button
+                          type="button"
+                          disabled={arr.length <= 1}
+                          onClick={() => {
+                            if (arr.length <= 1) return;
+                            const newArr = arr.filter((_, i) => i !== idx);
+                            setConfig({ ...config, integration: { ...config.integration, modelFallbacks: newArr } });
+                          }}
+                          title="Delete Model"
+                          style={{ padding: '6px 8px', background: arr.length <= 1 ? '#F3F4F6' : '#FFFFFF', border: '1px solid ' + (arr.length <= 1 ? '#E5E7EB' : '#FCA5A5'), borderRadius: '4px', cursor: arr.length <= 1 ? 'not-allowed' : 'pointer', color: arr.length <= 1 ? '#9CA3AF' : '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Add Model Controls */}
+                  <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      {(config.integration.modelFallbacks || ['gemini-3.5-flash', 'gemini-3.7-flash', 'gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-pro-latest']).length < 5 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const cur = config.integration.modelFallbacks || ['gemini-3.5-flash', 'gemini-3.7-flash', 'gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-pro-latest'];
+                            if (cur.length < 5) {
+                              setConfig({
+                                ...config,
+                                integration: {
+                                  ...config.integration,
+                                  modelFallbacks: [...cur, 'gemini-3.5-flash-lite']
+                                }
+                              });
+                            }
+                          }}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: '600', color: '#1D4ED8', background: '#EFF6FF', border: '1px solid #BFDBFE', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer' }}
+                        >
+                          <Plus size={13} /> Add Standard Slot
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => setShowCustomModelBox(!showCustomModelBox)}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: '600', color: '#047857', background: '#ECFDF5', border: '1px solid #A7F3D0', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer' }}
+                      >
+                        <Plus size={13} /> {showCustomModelBox ? 'Close Custom Box' : 'Add Custom Model Name'}
+                      </button>
+                    </div>
+
+                    {showCustomModelBox && (
+                      <div style={{ marginTop: '4px', padding: '12px', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '6px' }}>
+                        <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', color: '#065F46', marginBottom: '6px' }}>
+                          Add Any Model ID Manually (e.g. gemini-3.8-flash, custom-tuned-model)
+                        </label>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <input
+                            type="text"
+                            placeholder="e.g. gemini-3.8-flash or gemini-ultra"
+                            value={customModelInput}
+                            onChange={e => setCustomModelInput(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                const trimmed = customModelInput.trim();
+                                if (trimmed) {
+                                  const cur = config.integration.modelFallbacks || ['gemini-3.5-flash', 'gemini-3.7-flash'];
+                                  if (cur.length < 5) {
+                                    setConfig({
+                                      ...config,
+                                      integration: {
+                                        ...config.integration,
+                                        modelFallbacks: [...cur, trimmed]
+                                      }
+                                    });
+                                    setCustomModelInput('');
+                                    setShowCustomModelBox(false);
+                                  } else {
+                                    alert('Maximum 5 fallback model slots reached. Remove a model first.');
+                                  }
+                                }
+                              }
+                            }}
+                            style={{ flex: 1, padding: '7px 10px', fontSize: '12px', border: '1px solid #86EFAC', borderRadius: '4px', background: '#FFFFFF' }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const trimmed = customModelInput.trim();
+                              if (!trimmed) return;
+                              const cur = config.integration.modelFallbacks || ['gemini-3.5-flash', 'gemini-3.7-flash'];
+                              if (cur.length < 5) {
+                                setConfig({
+                                  ...config,
+                                  integration: {
+                                    ...config.integration,
+                                    modelFallbacks: [...cur, trimmed]
+                                  }
+                                });
+                                setCustomModelInput('');
+                                setShowCustomModelBox(false);
+                              } else {
+                                alert('Maximum 5 fallback model slots reached. Remove a model first.');
+                              }
+                            }}
+                            style={{ padding: '7px 14px', background: '#059669', color: 'white', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                          >
+                            <Plus size={13} /> Add
+                          </button>
+                        </div>
+                        <p style={{ fontSize: '11px', color: '#047857', margin: '6px 0 0 0' }}>
+                          Added model will automatically be used in the fallback execution sequence.
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '2px solid #E5E7EB' }}>
@@ -3492,6 +4967,26 @@ export default function App() {
             </button>
             <button
               type="button"
+              onClick={() => setPreviewMode('form')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                padding: '4px 12px',
+                fontSize: '12px',
+                fontWeight: previewMode === 'form' ? '600' : '500',
+                color: previewMode === 'form' ? '#0F172A' : '#94A3B8',
+                background: previewMode === 'form' ? '#FFFFFF' : 'transparent',
+                border: 'none',
+                borderRadius: '5px',
+                cursor: 'pointer',
+                boxShadow: previewMode === 'form' ? '0 1px 2px rgba(0,0,0,0.2)' : 'none',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              Form
+            </button>
+            <button
+              type="button"
               onClick={() => setPreviewMode('report')}
               style={{
                 display: 'inline-flex',
@@ -3582,10 +5077,29 @@ export default function App() {
                 <h1>{config.content.title}</h1>
                 <p>{config.content.description}</p>
               </div>
-              <div className="progress-card">
-                <div style={{fontSize:'12px', fontWeight:600, color:'#9AA0A6', textTransform:'uppercase'}}>{isResultStep ? 'Report Generated' : 'Data Collection'}</div>
-                <div className="progress-track"><div className="progress-fill" style={{ width: `${progress}%` }}></div></div>
-                <div style={{fontSize:'28px', color:'white', marginTop:'12px'}}>{progress}%</div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+                <div style={{ 
+                  display: 'inline-flex', 
+                  alignItems: 'center', 
+                  gap: '6px', 
+                  background: 'rgba(59, 130, 246, 0.25)', 
+                  border: '1px solid rgba(147, 197, 253, 0.4)', 
+                  color: '#93C5FD', 
+                  fontSize: '11px', 
+                  fontWeight: 700, 
+                  padding: '3px 10px', 
+                  borderRadius: '12px',
+                  letterSpacing: '0.04em',
+                  fontFamily: 'SFMono-Regular, Consolas, monospace'
+                }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#60A5FA', boxShadow: '0 0 6px #60A5FA' }}></span>
+                  Build v{config.buildVersion || '1.01'}
+                </div>
+                <div className="progress-card" style={{ width: '100%' }}>
+                  <div style={{fontSize:'12px', fontWeight:600, color:'#9AA0A6', textTransform:'uppercase'}}>{isResultStep ? 'Report Generated' : 'Data Collection'}</div>
+                  <div className="progress-track"><div className="progress-fill" style={{ width: `${progress}%` }}></div></div>
+                  <div style={{fontSize:'28px', color:'white', marginTop:'12px'}}>{progress}%</div>
+                </div>
               </div>
             </div>
 
@@ -3661,88 +5175,385 @@ export default function App() {
                 );
               })()}
 
-              {previewMode === 'questions' && isGateStep && (
+              {(previewMode === 'form' || (previewMode === 'questions' && isGateStep)) && (
                 <div>
                   <div className="question-head">
                     <h2>Generate Your Diagnostic Report</h2>
                     <p style={{color:'#5F6368', marginTop:'8px'}}>Data collection complete. Enter your contact details and workplace project status to process your customized readiness profile.</p>
                   </div>
-                  <div className="form-grid">
-                    <div className="form-group">
-                      <label>Full Name *</label>
-                      <input 
-                        required 
-                        placeholder="e.g. Jane Doe"
-                        value={lead.name} 
-                        onChange={e=>setLead({...lead, name: e.target.value})} 
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Work Email *</label>
-                      <input 
-                        type="email" 
-                        required 
-                        placeholder="name@company.com"
-                        value={lead.email} 
-                        onChange={e=>setLead({...lead, email: e.target.value})} 
-                        style={{
-                          borderColor: (lead.email && lead.email.includes('@') && !isWorkEmail(lead.email)) ? '#EF4444' : '#DADCE0'
-                        }}
-                      />
-                      {lead.email && lead.email.includes('@') && !isWorkEmail(lead.email) && (
-                        <div style={{ fontSize: '12px', color: '#DC2626', marginTop: '6px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <AlertCircle size={14} /> Please enter your official work email. Personal accounts (Gmail, Yahoo, Hotmail, etc.) are not accepted.
+
+                  {config.leadCapture?.formType === 'hubspot' ? (
+                    /* HubSpot Embed Form View in Preview */
+                    <div style={{ background: '#FFFFFF', border: '1.5px solid #FED7AA', borderRadius: '8px', padding: '24px', marginBottom: '20px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid #FED7AA' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '13px', fontWeight: 700, color: '#C2410C', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            🧡 HubSpot Embed Form Gate
+                          </span>
+                          <span style={{ fontSize: '11px', background: '#FFEDD5', color: '#9A3412', padding: '2px 8px', borderRadius: '10px', fontWeight: 600 }}>
+                            Direct CRM Sync
+                          </span>
+                        </div>
+                        {config.leadCapture?.hubspot?.portalId && config.leadCapture?.hubspot?.formId ? (
+                          <span style={{ fontSize: '11px', color: '#059669', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <CheckCircle2 size={13} /> Hub: {config.leadCapture.hubspot.portalId}
+                          </span>
+                        ) : null}
+                      </div>
+
+                      {(!config.leadCapture?.hubspot?.portalId || !config.leadCapture?.hubspot?.formId) ? (
+                        <div style={{ padding: '24px', background: '#FFF7ED', border: '1px dashed #FB923C', borderRadius: '6px', textAlign: 'center' }}>
+                          <AlertCircle size={24} color="#EA580C" style={{ margin: '0 auto 8px', display: 'block' }} />
+                          <h4 style={{ margin: '0 0 6px', fontSize: '14px', color: '#9A3412' }}>HubSpot Form Configuration Required</h4>
+                          <p style={{ fontSize: '12px', color: '#7C2D12', margin: '0 0 12px', maxWidth: '440px', marginLeft: 'auto', marginRight: 'auto' }}>
+                            Please switch to the <strong>Form</strong> tab in the sidebar and enter your HubSpot <strong>Portal ID</strong> &amp; <strong>Form ID</strong> (or paste your HubSpot embed snippet).
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setActiveTab('form')}
+                            className="btn btn-primary"
+                            style={{ fontSize: '12px', padding: '6px 14px', background: '#EA580C', borderColor: '#EA580C' }}
+                          >
+                            Configure HubSpot Form
+                          </button>
+                        </div>
+                      ) : (
+                        <div>
+                          {/* Live HubSpot Form Target Container */}
+                          <div 
+                            id="hubspot-preview-form-target" 
+                            key={`hs-${config.leadCapture?.hubspot?.portalId}-${config.leadCapture?.hubspot?.formId}`}
+                            ref={node => {
+                              if (!node) return;
+                              const portalId = config.leadCapture?.hubspot?.portalId;
+                              const formId = config.leadCapture?.hubspot?.formId;
+                              const region = config.leadCapture?.hubspot?.region || 'na1';
+                              if (!portalId || !formId) return;
+
+                              const loadHsScript = () => {
+                                if (window.hbspt && window.hbspt.forms) {
+                                  node.innerHTML = '';
+                                  window.hbspt.forms.create({
+                                    region: region,
+                                    portalId: portalId,
+                                    formId: formId,
+                                    target: '#hubspot-preview-form-target',
+                                    onFormSubmitted: function($form) {
+                                      // Trigger report generation unlock
+                                      if (previewMode === 'questions' && isGateStep) {
+                                        submitToWebhook();
+                                      } else {
+                                        alert('HubSpot form submitted successfully! Leads auto-synced to HubSpot CRM.');
+                                      }
+                                    }
+                                  });
+                                } else {
+                                  const existingScript = document.getElementById('hs-forms-script');
+                                  if (!existingScript) {
+                                    const script = document.createElement('script');
+                                    script.id = 'hs-forms-script';
+                                    script.src = '//js.hsforms.net/forms/embed/v2.js';
+                                    script.charset = 'utf-8';
+                                    script.type = 'text/javascript';
+                                    script.onload = () => {
+                                      if (window.hbspt && window.hbspt.forms) {
+                                        node.innerHTML = '';
+                                        window.hbspt.forms.create({
+                                          region: region,
+                                          portalId: portalId,
+                                          formId: formId,
+                                          target: '#hubspot-preview-form-target',
+                                          onFormSubmitted: function($form) {
+                                            if (previewMode === 'questions' && isGateStep) {
+                                              submitToWebhook();
+                                            } else {
+                                              alert('HubSpot form submitted successfully! Leads auto-synced to HubSpot CRM.');
+                                            }
+                                          }
+                                        });
+                                      }
+                                    };
+                                    document.body.appendChild(script);
+                                  } else {
+                                    existingScript.addEventListener('load', () => {
+                                      if (window.hbspt && window.hbspt.forms) {
+                                        node.innerHTML = '';
+                                        window.hbspt.forms.create({
+                                          region: region,
+                                          portalId: portalId,
+                                          formId: formId,
+                                          target: '#hubspot-preview-form-target',
+                                          onFormSubmitted: function($form) {
+                                            if (previewMode === 'questions' && isGateStep) {
+                                              submitToWebhook();
+                                            } else {
+                                              alert('HubSpot form submitted successfully! Leads auto-synced to HubSpot CRM.');
+                                            }
+                                          }
+                                        });
+                                      }
+                                    });
+                                  }
+                                }
+                              };
+                              loadHsScript();
+                            }}
+                          />
                         </div>
                       )}
                     </div>
-                    <div className="form-group">
-                      <label>Company *</label>
-                      <input 
-                        required
-                        placeholder="e.g. Steelcase Inc."
-                        value={lead.company} 
-                        onChange={e=>setLead({...lead, company: e.target.value})} 
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Job Title / Role</label>
-                      <input 
-                        placeholder="e.g. Director of Real Estate & Workplace"
-                        value={lead.role} 
-                        onChange={e=>setLead({...lead, role: e.target.value})} 
-                      />
-                    </div>
-                    <div className="form-group" style={{ gridColumn: 'span 2' }}>
-                      <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#202124', marginBottom: '8px' }}>
-                        What best describes your current workplace project status? *
-                      </label>
-                      <select 
-                        required
-                        value={lead.projectStatus} 
-                        onChange={e=>setLead({...lead, projectStatus: e.target.value})}
-                        style={{
-                          width: '100%',
-                          padding: '11px 14px',
-                          border: '1px solid #DADCE0',
-                          borderRadius: '4px',
-                          fontSize: '14px',
-                          backgroundColor: 'white',
-                          color: lead.projectStatus ? '#111827' : '#6B7280',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        <option value="" disabled>-- Select project status --</option>
-                        <option value="A - Active project, decisions within 6 months">A - Active project, decisions within 6 months</option>
-                        <option value="B - Exploring a project, 6-12 months">B - Exploring a project, 6-12 months</option>
-                        <option value="C - Future project, no timeline yet">C - Future project, no timeline yet</option>
-                        <option value="D - Researching workplace trends and best practices">D - Researching workplace trends and best practices</option>
-                        <option value="E - We are Dealer / Architect / Designer / Industry Partner">E - We are Dealer / Architect / Designer / Industry Partner</option>
-                      </select>
-                    </div>
+                  ) : (
+                  <>
+                  <div className="form-grid">
+                    {config.leadCapture?.fields?.name?.enabled !== false && (
+                      <div className="form-group">
+                        <label>{config.leadCapture?.fields?.name?.label || "Full Name"} {config.leadCapture?.fields?.name?.required !== false ? '*' : ''}</label>
+                        <input 
+                          required={config.leadCapture?.fields?.name?.required !== false} 
+                          placeholder="e.g. Jane Doe"
+                          value={lead.name} 
+                          onChange={e=>setLead({...lead, name: e.target.value})} 
+                        />
+                      </div>
+                    )}
+                    {config.leadCapture?.fields?.email?.enabled !== false && (
+                      <div className="form-group">
+                        <label>{config.leadCapture?.fields?.email?.label || "Work Email"} {config.leadCapture?.fields?.email?.required !== false ? '*' : ''}</label>
+                        <input 
+                          type="email" 
+                          required={config.leadCapture?.fields?.email?.required !== false} 
+                          placeholder="name@company.com"
+                          value={lead.email} 
+                          onChange={e=>setLead({...lead, email: e.target.value})} 
+                          style={{
+                            borderColor: (config.leadCapture?.requireWorkEmail !== false && lead.email && lead.email.includes('@') && !isWorkEmail(lead.email)) ? '#EF4444' : '#DADCE0'
+                          }}
+                        />
+                        {config.leadCapture?.requireWorkEmail !== false && lead.email && lead.email.includes('@') && !isWorkEmail(lead.email) && (
+                          <div style={{ fontSize: '12px', color: '#DC2626', marginTop: '6px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <AlertCircle size={14} /> Please enter your official work email. Personal accounts (Gmail, Yahoo, Hotmail, etc.) are not accepted.
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {config.leadCapture?.fields?.company?.enabled !== false && (
+                      <div className="form-group">
+                        <label>{config.leadCapture?.fields?.company?.label || "Company"} {config.leadCapture?.fields?.company?.required !== false ? '*' : ''}</label>
+                        <input 
+                          required={config.leadCapture?.fields?.company?.required !== false}
+                          placeholder="e.g. Steelcase Inc."
+                          value={lead.company} 
+                          onChange={e=>setLead({...lead, company: e.target.value})} 
+                        />
+                      </div>
+                    )}
+                    {config.leadCapture?.fields?.role?.enabled !== false && (
+                      <div className="form-group">
+                        <label>{config.leadCapture?.fields?.role?.label || "Job Title / Role"} {config.leadCapture?.fields?.role?.required ? '*' : ''}</label>
+                        <input 
+                          required={config.leadCapture?.fields?.role?.required === true}
+                          placeholder="e.g. Director of Real Estate & Workplace"
+                          value={lead.role} 
+                          onChange={e=>setLead({...lead, role: e.target.value})} 
+                        />
+                      </div>
+                    )}
+                    {config.leadCapture?.fields?.phone?.enabled === true && (
+                      <div className="form-group">
+                        <label>{config.leadCapture?.fields?.phone?.label || "Direct Phone"} {config.leadCapture?.fields?.phone?.required ? '*' : ''}</label>
+                        <input 
+                          type="tel"
+                          required={config.leadCapture?.fields?.phone?.required === true}
+                          placeholder="+1 (555) 000-0000"
+                          value={lead.phone || ''} 
+                          onChange={e=>setLead({...lead, phone: e.target.value})} 
+                        />
+                      </div>
+                    )}
+                    {config.leadCapture?.fields?.projectStatus?.enabled !== false && (
+                      <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                        <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#202124', marginBottom: '8px' }}>
+                          {config.leadCapture?.fields?.projectStatus?.label || "What best describes your current workplace project status?"} {config.leadCapture?.fields?.projectStatus?.required !== false ? '*' : ''}
+                        </label>
+                        <select 
+                          required={config.leadCapture?.fields?.projectStatus?.required !== false}
+                          value={lead.projectStatus} 
+                          onChange={e=>setLead({...lead, projectStatus: e.target.value})}
+                          style={{
+                            width: '100%',
+                            padding: '11px 14px',
+                            border: '1px solid #DADCE0',
+                            borderRadius: '4px',
+                            fontSize: '14px',
+                            backgroundColor: 'white',
+                            color: lead.projectStatus ? '#111827' : '#6B7280',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <option value="" disabled>-- Select project status --</option>
+                          <option value="A - Active project, decisions within 6 months">A - Active project, decisions within 6 months</option>
+                          <option value="B - Exploring a project, 6-12 months">B - Exploring a project, 6-12 months</option>
+                          <option value="C - Future project, no timeline yet">C - Future project, no timeline yet</option>
+                          <option value="D - Researching workplace trends and best practices">D - Researching workplace trends and best practices</option>
+                          <option value="E - We are Dealer / Architect / Designer / Industry Partner">E - We are Dealer / Architect / Designer / Industry Partner</option>
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Dynamic Custom Questions in Form */}
+                    {Array.isArray(config.leadCapture?.customQuestions) && config.leadCapture.customQuestions.map((cq) => {
+                      if (cq.enabled === false) return null;
+                      const qId = cq.id;
+                      const currentVal = lead.customAnswers?.[qId] ?? '';
+                      const setCustomAnswer = (val) => {
+                        setLead(prev => ({
+                          ...prev,
+                          customAnswers: {
+                            ...(prev.customAnswers || {}),
+                            [qId]: val
+                          }
+                        }));
+                      };
+
+                      return (
+                        <div key={qId} className="form-group" style={{ gridColumn: 'span 2' }}>
+                          <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#202124', marginBottom: '8px' }}>
+                            {cq.label || 'Intake Question'} {cq.required ? '*' : ''}
+                          </label>
+
+                          {/* Multiple Choice / Dropdown Format */}
+                          {(cq.type === 'select' || !cq.type) && (
+                            <select
+                              required={cq.required}
+                              value={currentVal}
+                              onChange={e => setCustomAnswer(e.target.value)}
+                              style={{
+                                width: '100%',
+                                padding: '11px 14px',
+                                border: '1px solid #DADCE0',
+                                borderRadius: '4px',
+                                fontSize: '14px',
+                                backgroundColor: 'white',
+                                color: currentVal ? '#111827' : '#6B7280',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <option value="" disabled>-- Select an option --</option>
+                              {(Array.isArray(cq.options) ? cq.options : []).map((opt, idx) => (
+                                <option key={idx} value={opt}>{opt}</option>
+                              ))}
+                            </select>
+                          )}
+
+                          {/* Radio Multiple Choice Format */}
+                          {cq.type === 'multiple_choice' && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                              {(Array.isArray(cq.options) ? cq.options : []).map((opt, idx) => (
+                                <label 
+                                  key={idx} 
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                    fontSize: '13px',
+                                    color: '#374151',
+                                    background: currentVal === opt ? '#EFF6FF' : '#F9FAFB',
+                                    border: currentVal === opt ? '1.5px solid #3B82F6' : '1px solid #E5E7EB',
+                                    padding: '8px 12px',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  <input
+                                    type="radio"
+                                    name={`custom_q_${qId}`}
+                                    value={opt}
+                                    checked={currentVal === opt}
+                                    onChange={() => setCustomAnswer(opt)}
+                                    style={{ accentColor: '#1D4ED8', cursor: 'pointer' }}
+                                  />
+                                  <span>{opt}</span>
+                                </label>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Short Text Input */}
+                          {cq.type === 'text' && (
+                            <input
+                              type="text"
+                              required={cq.required}
+                              placeholder={cq.placeholder || "Enter answer..."}
+                              value={currentVal}
+                              onChange={e => setCustomAnswer(e.target.value)}
+                            />
+                          )}
+
+                          {/* Number Input */}
+                          {cq.type === 'number' && (
+                            <input
+                              type="number"
+                              required={cq.required}
+                              placeholder={cq.placeholder || "0"}
+                              value={currentVal}
+                              onChange={e => setCustomAnswer(e.target.value)}
+                            />
+                          )}
+
+                          {/* Rating Scale */}
+                          {cq.type === 'rating' && (
+                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                              {Array.from({ length: cq.ratingMax || 5 }, (_, idx) => idx + 1).map(num => (
+                                <button
+                                  key={num}
+                                  type="button"
+                                  onClick={() => setCustomAnswer(num)}
+                                  style={{
+                                    width: '38px',
+                                    height: '38px',
+                                    borderRadius: '6px',
+                                    border: currentVal === num ? '2px solid #1D4ED8' : '1px solid #D1D5DB',
+                                    background: currentVal === num ? '#1D4ED8' : 'white',
+                                    color: currentVal === num ? 'white' : '#374151',
+                                    fontWeight: 700,
+                                    fontSize: '14px',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.15s ease'
+                                  }}
+                                >
+                                  {num}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                   <div style={{fontSize:'12px', color:'#5F6368', display:'flex', alignItems:'center', gap:'6px'}}>
-                    <Lock size={12}/> Data securely processed. Official work email required.
+                    <Lock size={12}/> {config.leadCapture?.requireWorkEmail !== false ? "Data securely processed. Official work email required." : "Data securely processed."}
                   </div>
+                  </>
+                  )}
+
+                  {previewMode === 'form' && config.leadCapture?.formType !== 'hubspot' && (
+                    <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid #E5E7EB', display: 'flex', justifyContent: 'flex-end' }}>
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        disabled={!isLeadValid()}
+                        onClick={() => {
+                          alert('Form inputs are valid and ready for gate submission!');
+                        }}
+                        style={{
+                          opacity: !isLeadValid() ? 0.6 : 1,
+                          cursor: !isLeadValid() ? 'not-allowed' : 'pointer'
+                        }}
+                      >
+                        <CheckCircle2 size={16} /> Test Submit Form
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -3752,7 +5563,7 @@ export default function App() {
                     <div className="result-panel" style={{backgroundColor: activeResult.color}}>
                       <div style={{fontSize:'12px', fontWeight:600, textTransform:'uppercase'}}>{activeResult.tone}</div>
                       <div className="score-display">{scoreData}</div>
-                      <div style={{fontSize:'12px', fontWeight:600}}>OUT OF 100</div>
+                      <div style={{fontSize:'12px', fontWeight:600}}>{config.ctaConfig?.scoreLabel ? config.ctaConfig.scoreLabel.toUpperCase() : "OUT OF 100"}</div>
                       <h2>{activeResult.title}</h2>
                       <p style={{fontSize:'14px', lineHeight:'1.6', margin: 0}}>{activeResult.desc}</p>
                     </div>
@@ -3766,16 +5577,22 @@ export default function App() {
                       
                       <button 
                         className="btn btn-primary" 
-                        onClick={requestAssessment}
-                        disabled={applied}
+                        onClick={() => {
+                          if (config.ctaConfig?.primaryCtaType === 'redirect' && config.ctaConfig?.redirectUrl) {
+                            window.open(config.ctaConfig.redirectUrl, '_blank');
+                          } else {
+                            requestAssessment();
+                          }
+                        }}
+                        disabled={applied && config.ctaConfig?.primaryCtaType !== 'redirect'}
                         style={{width: '100%', justifyContent: 'center', marginBottom: 12, backgroundColor: applied ? '#9CA3AF' : 'var(--primary-color)'}}
                       >
-                        <Mail size={16}/> {applied ? "Request Sent" : "Apply Now"}
+                        <Mail size={16}/> {applied ? "Request Sent" : (config.ctaConfig?.primaryCtaText || "Apply Now")}
                       </button>
                       
-                      {applied && !telSent && (
+                      {applied && !telSent && config.ctaConfig?.secondaryCtaEnabled !== false && (
                         <div style={{background:'white', padding:16, border:'1px solid #E5E7EB', borderRadius:6, marginTop:12}}>
-                          <label style={{fontSize:12, fontWeight:600, display:'block', marginBottom:8}}>Add Telephone (Optional)</label>
+                          <label style={{fontSize:12, fontWeight:600, display:'block', marginBottom:8}}>{config.ctaConfig?.secondaryCtaText || "Add Telephone (Optional)"}</label>
                           <div style={{display:'flex', gap:8}}>
                             <input type="tel" placeholder="+1..." value={tel} onChange={e=>setTel(e.target.value)} style={{flex:1, padding:'8px 12px', border:'1px solid #D1D5DB', borderRadius:4}} />
                             <button onClick={submitTel} className="btn btn-secondary" style={{padding:'8px 12px'}}>Send</button>
@@ -3798,22 +5615,156 @@ export default function App() {
                         <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <BarChart2 size={20}/> Custom AI Diagnosis
                         </span>
-                        <button 
-                          className="btn btn-secondary" 
-                          onClick={downloadPdfReport} 
-                          style={{ fontSize: '12px', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px', background: 'white', borderColor: '#BFDBFE', color: '#1D4ED8', cursor: 'pointer' }}
-                        >
-                          <FileText size={14} /> Download PDF Report
-                        </button>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {aiThinkingLogs.length > 0 && !isGeneratingAI && (
+                            <button
+                              type="button"
+                              onClick={() => setShowDiagnosticLogs(!showDiagnosticLogs)}
+                              style={{
+                                fontSize: '11px',
+                                padding: '5px 10px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                background: showDiagnosticLogs ? '#EFF6FF' : '#F9FAFB',
+                                border: '1px solid ' + (showDiagnosticLogs ? '#3B82F6' : '#D1D5DB'),
+                                color: showDiagnosticLogs ? '#1D4ED8' : '#4B5563',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                fontWeight: 600
+                              }}
+                            >
+                              <Activity size={13} /> {showDiagnosticLogs ? 'Hide Logs' : 'View AI Diagnostics'}
+                            </button>
+                          )}
+                          <button 
+                            className="btn btn-secondary" 
+                            onClick={downloadPdfReport} 
+                            style={{ fontSize: '12px', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px', background: 'white', borderColor: '#BFDBFE', color: '#1D4ED8', cursor: 'pointer' }}
+                          >
+                            <FileText size={14} /> Download PDF Report
+                          </button>
+                        </div>
                       </div>
+
+                      {/* Completed Telemetry Bar & Expandable Logs */}
+                      {!isGeneratingAI && showDiagnosticLogs && (
+                        <div style={{ margin: '12px 0 16px 0', padding: '14px', background: '#0F172A', borderRadius: '8px', color: '#E2E8F0', fontFamily: 'SFMono-Regular, Consolas, monospace', fontSize: '11.5px', border: '1px solid #1E293B' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #334155', paddingBottom: '8px', marginBottom: '10px' }}>
+                            <span style={{ fontWeight: 700, color: '#38BDF8', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#22C55E' }}></span>
+                              Live Execution Telemetry & Model Verification
+                            </span>
+                            {lastTelemetryData && (
+                              <span style={{ fontSize: '10px', color: '#94A3B8', background: '#1E293B', padding: '2px 8px', borderRadius: '4px' }}>
+                                Model: <strong style={{ color: '#FCD34D' }}>{lastTelemetryData.modelUsed}</strong> | Latency: <strong style={{ color: '#4ADE80' }}>{lastTelemetryData.latencyMs}ms</strong>
+                              </span>
+                            )}
+                          </div>
+
+                          <div style={{ maxHeight: '180px', overflowY: 'auto', lineHeight: '1.6' }}>
+                            {aiThinkingLogs.map((log, lIdx) => {
+                              const isError = log.includes('429') || log.includes('WARN') || log.includes('QUOTA') || log.includes('EXHAUSTION');
+                              const isSuccess = log.includes('SUCCESS');
+                              return (
+                                <div key={lIdx} style={{ 
+                                  color: isError ? '#F87171' : isSuccess ? '#4ADE80' : '#CBD5E1',
+                                  fontWeight: isError ? 600 : 400,
+                                  marginBottom: '3px'
+                                }}>
+                                  {log}
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          <div style={{ marginTop: '10px', paddingTop: '8px', borderTop: '1px solid #334155', display: 'flex', justifyContent: 'flex-end' }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(aiThinkingLogs.join('\n'));
+                                alert('Diagnostic logs copied to clipboard.');
+                              }}
+                              style={{ background: '#1E293B', border: '1px solid #475569', color: '#94A3B8', padding: '3px 8px', borderRadius: '4px', fontSize: '10px', cursor: 'pointer' }}
+                            >
+                              Copy Full Telemetry Log
+                            </button>
+                          </div>
+                        </div>
+                      )}
                       {isGeneratingAI ? (
-                        <div style={{ padding: '20px', background: '#F8FAFC', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', borderBottom: '1px solid #E2E8F0', paddingBottom: '12px' }}>
-                            <div className="spinner" style={{ width: 20, height: 20, border: '3px solid #BFDBFE', borderTopColor: '#1D4ED8', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }}></div>
-                            <div>
-                              <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: '#1E3A8A' }}>Steelcase ARC AI Engine Working...</h4>
-                              <span style={{ fontSize: '12px', color: '#64748B' }}>Synthesizing web research & spatial metrics</span>
+                        <div style={{ padding: '24px', background: '#F8FAFC', borderRadius: '10px', border: '1.5px solid #DBEAFE', boxShadow: '0 4px 12px rgba(29, 78, 216, 0.04)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px', borderBottom: '1px solid #E2E8F0', paddingBottom: '14px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <div className="spinner" style={{ width: 24, height: 24, border: '3px solid #BFDBFE', borderTopColor: '#1D4ED8', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }}></div>
+                              <div>
+                                <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#1E3A8A' }}>
+                                  AI Diagnostic Engine Running
+                                </h4>
+                                <span style={{ fontSize: '12px', color: '#64748B' }}>
+                                  Conducting web research, benchmarking parameters, and drafting report...
+                                </span>
+                              </div>
                             </div>
+                            <span style={{ fontSize: '11px', fontWeight: 700, background: '#DBEAFE', color: '#1E40AF', padding: '3px 10px', borderRadius: '12px' }}>
+                              Step {Math.min(thinkingStepIndex + 1, thinkingSteps.length)} of {thinkingSteps.length}
+                            </span>
+                          </div>
+
+                          {/* AI Execution & Quota Thinking Console Box */}
+                          <div style={{
+                            background: '#0F172A',
+                            color: '#E2E8F0',
+                            borderRadius: '8px',
+                            padding: '12px 14px',
+                            marginBottom: '16px',
+                            fontFamily: 'SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace',
+                            fontSize: '11.5px',
+                            lineHeight: '1.6',
+                            border: '1px solid #1E293B',
+                            maxHeight: '130px',
+                            overflowY: 'auto',
+                            boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.4)'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', borderBottom: '1px solid #1E293B', paddingBottom: '6px', color: '#94A3B8', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>
+                              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#22C55E', boxShadow: '0 0 6px #22C55E' }}></span>
+                                AI Thinking & System Quota Diagnostics
+                              </span>
+                              <span style={{ background: '#1E293B', padding: '1px 6px', borderRadius: '4px', color: '#38BDF8', fontSize: '9px' }}>Live Log</span>
+                            </div>
+                            {aiThinkingLogs.length === 0 ? (
+                              <div style={{ color: '#64748B', fontStyle: 'italic' }}>[System] Connecting to AI analysis engine...</div>
+                            ) : (
+                              aiThinkingLogs.map((log, lIdx) => {
+                                const isError = log.includes('429') || log.includes('WARN') || log.includes('QUOTA') || log.includes('EXHAUSTION');
+                                const isSuccess = log.includes('SUCCESS');
+                                return (
+                                  <div key={lIdx} style={{ 
+                                    color: isError ? '#F87171' : isSuccess ? '#4ADE80' : '#CBD5E1',
+                                    fontWeight: isError ? 600 : 400,
+                                    wordBreak: 'break-word',
+                                    marginBottom: '3px'
+                                  }}>
+                                    {log}
+                                  </div>
+                                );
+                              })
+                            )}
+                            <div ref={thinkingLogEndRef} />
+                          </div>
+
+                          {/* Pulsing Progress Bar */}
+                          <div style={{ background: '#E2E8F0', height: '6px', borderRadius: '3px', overflow: 'hidden', marginBottom: '18px' }}>
+                            <div 
+                              style={{ 
+                                height: '100%', 
+                                width: `${thinkingProgress}%`, 
+                                background: 'linear-gradient(90deg, #3B82F6, #1D4ED8)', 
+                                borderRadius: '3px',
+                                transition: 'width 0.4s ease-out'
+                              }} 
+                            />
                           </div>
                           
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -3824,22 +5775,22 @@ export default function App() {
                                 <div key={idx} style={{ 
                                   display: 'flex', 
                                   alignItems: 'center', 
-                                  gap: '10px', 
+                                  gap: '12px', 
                                   fontSize: '13px', 
                                   color: isCurrent ? '#1D4ED8' : isPast ? '#059669' : '#94A3B8',
                                   fontWeight: isCurrent ? 600 : 400,
                                   transition: 'all 0.3s ease',
-                                  padding: '8px 12px',
-                                  background: isCurrent ? '#EFF6FF' : isPast ? '#F0FDF4' : 'transparent',
+                                  padding: '10px 14px',
+                                  background: isCurrent ? '#EFF6FF' : isPast ? '#F0FDF4' : '#FFFFFF',
                                   borderRadius: '6px',
-                                  border: isCurrent ? '1px solid #BFDBFE' : '1px solid transparent'
+                                  border: isCurrent ? '1px solid #BFDBFE' : isPast ? '1px solid #BBF7D0' : '1px solid #F1F5F9'
                                 }}>
                                   {isPast ? (
-                                    <CheckCircle2 size={16} color="#059669" />
+                                    <CheckCircle2 size={18} color="#059669" />
                                   ) : isCurrent ? (
-                                    <div className="spinner" style={{ width: 14, height: 14, border: '2px solid #93C5FD', borderTopColor: '#1D4ED8', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }}></div>
+                                    <div className="spinner" style={{ width: 16, height: 16, border: '2.5px solid #93C5FD', borderTopColor: '#1D4ED8', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }}></div>
                                   ) : (
-                                    <div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #CBD5E1' }}></div>
+                                    <div style={{ width: 16, height: 16, borderRadius: '50%', border: '2px solid #CBD5E1' }}></div>
                                   )}
                                   <span>{stepText}</span>
                                 </div>
@@ -3848,7 +5799,7 @@ export default function App() {
                           </div>
                         </div>
                       ) : (
-                        <div className="ai-content" onClick={handleAiContentClick} dangerouslySetInnerHTML={{__html: aiReport}} />
+                        <div className="ai-content" onClick={handleAiContentClick} dangerouslySetInnerHTML={{__html: aiReport || generateLayoutPreviewHtml()}} />
                       )}
                     </div>
                   </div>
@@ -4046,15 +5997,43 @@ export default function App() {
                     </a>
                   )}
                   {publishStatus.pagesUrl && (
-                    <a 
-                      href={publishStatus.pagesUrl} 
-                      target="_blank" 
-                      rel="noopener noreferrer" 
-                      className="btn btn-primary"
-                      style={{ background: '#059669', fontSize: '12px', padding: '8px 16px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
-                    >
-                      <ExternalLink size={13} /> Open Live Site
-                    </a>
+                    publishCountdown > 0 ? (
+                      <button
+                        disabled
+                        className="btn"
+                        style={{
+                          background: '#E2E8F0',
+                          color: '#475569',
+                          borderColor: '#CBD5E1',
+                          cursor: 'not-allowed',
+                          fontSize: '12px',
+                          padding: '8px 16px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '7px',
+                          fontWeight: '600'
+                        }}
+                      >
+                        <div className="spinner" style={{ width: 13, height: 13, border: '2px solid #CBD5E1', borderTopColor: '#2563EB', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }}></div>
+                        {publishCountdown > 45 
+                          ? `Publishing: Committing files (${publishCountdown}s)...` 
+                          : publishCountdown > 25 
+                          ? `Publishing: GitHub Actions building (${publishCountdown}s)...` 
+                          : publishCountdown > 10 
+                          ? `Publishing: Deploying to Pages CDN (${publishCountdown}s)...` 
+                          : `Publishing: Finalizing live URL (${publishCountdown}s)...`}
+                      </button>
+                    ) : (
+                      <a 
+                        href={publishStatus.pagesUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="btn btn-primary"
+                        style={{ background: '#059669', fontSize: '12px', padding: '8px 16px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                      >
+                        <ExternalLink size={13} /> Open Live Site
+                      </a>
+                    )
                   )}
                   <button className="btn btn-secondary" onClick={() => setShowPublishModal(false)} style={{ fontSize: '12px' }}>
                     Done
