@@ -250,16 +250,23 @@ IMPORTANT:
       const userFallbacks = rawFallbacks.map((m: any) => String(m || '').trim()).filter((m: string) => m.length > 0);
       
       const healthyDefaults = [
-        "gemini-3.5-flash-lite",
-        "gemini-3.1-flash-lite",
-        "gemini-flash-lite-latest",
-        "gemini-3.6-flash",
         "gemini-3.7-flash",
-        "gemini-3.5-flash"
+        "gemini-3.6-flash",
+        "gemini-3.5-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-pro-latest"
       ];
 
       // Combine user selection with guaranteed healthy fallbacks
-      const modelsToTry = Array.from(new Set([...userFallbacks, ...healthyDefaults])).slice(0, 6);
+      const baseModels = Array.from(new Set([...userFallbacks, ...healthyDefaults])).slice(0, 6);
+
+      // Implement Round Robin Load Balancing: start from a different index each time based on current time
+      // This ensures we distribute load across models equally to avoid rate limits
+      const startIndex = Math.floor(Date.now() / 1000) % baseModels.length;
+      const modelsToTry = [
+        ...baseModels.slice(startIndex),
+        ...baseModels.slice(0, startIndex)
+      ];
 
       thinkingLogs.push(`[${timestamp()}] [AI Engine] Initiated diagnostic generator for: "${company || 'Target Organization'}"`);
       thinkingLogs.push(`[${timestamp()}] [AI Engine] Priority fallback sequence (${modelsToTry.length} models): ${modelsToTry.join(', ')}`);
@@ -404,6 +411,44 @@ IMPORTANT:
     } catch (error: any) {
       console.error("AI Analysis Error:", error);
       res.status(500).json({ error: error.message || "Failed to generate AI analysis." });
+    }
+  });
+
+  // Scan & Sync Gemini Models
+  app.post("/api/list-models", async (req, res) => {
+    try {
+      const { apiKey } = req.body;
+      if (!apiKey) {
+        return res.status(400).json({ error: "API key is required to scan models." });
+      }
+
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        return res.status(response.status).json({ error: data.error?.message || "Failed to fetch models from Google API." });
+      }
+
+      // Filter for generation models, exclude non-text models, and extract the short name
+      const excludedKeywords = ["-tts", "-image", "-robotics", "-computer-use", "-omni", "-customtools"];
+      
+      const models = data.models
+        .filter((m: any) => {
+          if (!m.name.includes("gemini") || !(m.supportedGenerationMethods || []).includes("generateContent")) {
+            return false;
+          }
+          const shortName = m.name.replace("models/", "");
+          return !excludedKeywords.some(keyword => shortName.includes(keyword));
+        })
+        .map((m: any) => m.name.replace("models/", ""));
+        
+      // Sort in reverse alphabetical (newest versions usually sort higher)
+      models.sort((a: string, b: string) => b.localeCompare(a));
+
+      res.json({ models });
+    } catch (error: any) {
+      console.error("List Models Error:", error);
+      res.status(500).json({ error: error.message || "Internal server error while fetching models." });
     }
   });
 

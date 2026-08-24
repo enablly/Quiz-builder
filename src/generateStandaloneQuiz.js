@@ -974,15 +974,21 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
 "2. \\"section4Html\\": Clean HTML string for Section 4 (Strategic Roadmap & Spatial Interventions). Must include an unordered list (<ul>) of 3-4 actionable spatial/acoustic recommendations.\\n\\n" +
 "Return ONLY the JSON object. Do not include markdown fences, backticks, or any other text.";
 
-                const clientModels = (QUIZ_CONFIG.integration && Array.isArray(QUIZ_CONFIG.integration.modelFallbacks) && QUIZ_CONFIG.integration.modelFallbacks.length > 0)
-                  ? QUIZ_CONFIG.integration.modelFallbacks.slice(0, 5)
+                const rawClientModels = (QUIZ_CONFIG.integration && Array.isArray(QUIZ_CONFIG.integration.modelFallbacks) && QUIZ_CONFIG.integration.modelFallbacks.length > 0)
+                  ? QUIZ_CONFIG.integration.modelFallbacks.slice(0, 6)
                   : [
-                      "gemini-3.5-flash-lite",
-                      "gemini-3.1-flash-lite",
-                      "gemini-flash-lite-latest",
+                      "gemini-3.7-flash",
                       "gemini-3.6-flash",
-                      "gemini-3.7-flash"
+                      "gemini-3.5-flash",
+                      "gemini-3.5-flash-lite",
+                      "gemini-pro-latest"
                     ];
+
+                const rotateIdx = Math.floor(Date.now() / 1000) % rawClientModels.length;
+                const clientModels = [
+                  ...rawClientModels.slice(rotateIdx),
+                  ...rawClientModels.slice(0, rotateIdx)
+                ];
 
                 for (const mName of clientModels) {
                   try {

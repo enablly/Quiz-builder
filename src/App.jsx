@@ -57,7 +57,7 @@ const DEFAULT_CONFIG = {
   integration: {
     webhookUrl: '',
     geminiApiKey: '',
-    modelFallbacks: ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.6-flash', 'gemini-3.7-flash'],
+    modelFallbacks: ['gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-pro-latest'],
     githubToken: '',
     githubRepo: '',
     githubBranch: 'main',
@@ -538,8 +538,38 @@ export default function App() {
     localStorage.setItem('quizBuilderConfig', JSON.stringify(config));
   }, [config]);
 
-  const [customModelInput, setCustomModelInput] = useState('');
-  const [showCustomModelBox, setShowCustomModelBox] = useState(false);
+  const [availableModels, setAvailableModels] = useState([]);
+  const [isScanningModels, setIsScanningModels] = useState(false);
+  const [scanError, setScanError] = useState(null);
+
+  const handleScanModels = async () => {
+    const apiKey = config.integration.geminiApiKey || (import.meta.env && import.meta.env.VITE_GEMINI_API_KEY);
+    if (!apiKey) {
+      alert("Please enter a Gemini API Key first to scan for available models.");
+      return;
+    }
+
+    setIsScanningModels(true);
+    setScanError(null);
+    try {
+      const resp = await fetch("/api/list-models", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey })
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || "Failed to scan models");
+      
+      setAvailableModels(data.models);
+      alert(`Successfully discovered ${data.models.length} models available for your API key.`);
+    } catch (err) {
+      console.error("Scan error:", err);
+      setScanError(err.message);
+    } finally {
+      setIsScanningModels(false);
+    }
+  };
+
   const [showDiagnosticLogs, setShowDiagnosticLogs] = useState(false);
   const [lastTelemetryData, setLastTelemetryData] = useState(null);
 
@@ -1559,7 +1589,7 @@ export default function App() {
           aiPersona: config.aiPersona,
           reportSections: config.reportSections,
           dangerZoneConfig: config.dangerZoneConfig,
-          modelFallbacks: config.integration?.modelFallbacks || ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.6-flash', 'gemini-3.7-flash']
+          modelFallbacks: config.integration?.modelFallbacks || ['gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-pro-latest']
         })
       });
 
@@ -4614,7 +4644,7 @@ export default function App() {
 
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {(config.integration.modelFallbacks || ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.6-flash', 'gemini-3.7-flash']).map((mName, idx, arr) => (
+                    {(config.integration.modelFallbacks || ['gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-pro-latest']).map((mName, idx, arr) => (
                       <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#FFFFFF', padding: '8px 10px', borderRadius: '6px', border: '1px solid #D1D5DB', width: '100%', boxSizing: 'border-box' }}>
                         <span style={{ fontSize: '11px', fontWeight: '700', color: idx === 0 ? '#1D4ED8' : '#374151', background: idx === 0 ? '#EFF6FF' : '#F3F4F6', padding: '4px 8px', borderRadius: '4px', minWidth: '85px', textAlign: 'center', whiteSpace: 'nowrap', flexShrink: 0 }}>
                           {idx === 0 ? '#1 Primary' : `#${idx + 1} Fallback`}
@@ -4622,7 +4652,7 @@ export default function App() {
                         
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <select
-                            value={['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-3.5-flash', 'gemini-3.1-pro-preview', 'gemini-pro-latest', 'gemini-2.5-flash'].includes(mName) ? mName : 'custom'}
+                            value={availableModels.includes(mName) ? mName : 'custom'}
                             onChange={(e) => {
                               const newArr = [...arr];
                               if (e.target.value !== 'custom') {
@@ -4632,16 +4662,26 @@ export default function App() {
                             }}
                             style={{ width: '100%', padding: '6px 8px', fontSize: '12px', border: '1px solid #D1D5DB', borderRadius: '4px', background: '#FFFFFF', color: '#111827', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', boxSizing: 'border-box' }}
                           >
-                            <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (High Reliability - Fast)</option>
-                            <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite (Flash Lite)</option>
-                            <option value="gemini-flash-lite-latest">gemini-flash-lite-latest (Auto Latest Lite)</option>
-                            <option value="gemini-3.6-flash">gemini-3.6-flash (General Purpose)</option>
-                            <option value="gemini-3.7-flash">gemini-3.7-flash (Latest General)</option>
-                            <option value="gemini-3.5-flash">gemini-3.5-flash</option>
-                            <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview (Complex Tasks)</option>
-                            <option value="gemini-pro-latest">gemini-pro-latest</option>
-                            <option value="gemini-2.5-flash">gemini-2.5-flash (Legacy)</option>
-                            {!['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-3.5-flash', 'gemini-3.1-pro-preview', 'gemini-pro-latest', 'gemini-2.5-flash'].includes(mName) && (
+                            {availableModels.length > 0 ? (
+                              availableModels.map(model => (
+                                <option key={model} value={model}>{model}</option>
+                              ))
+                            ) : (
+                              <>
+                                <option value="gemini-3.7-flash">gemini-3.7-flash</option>
+                                <option value="gemini-3.6-flash">gemini-3.6-flash</option>
+                                <option value="gemini-3.5-flash">gemini-3.5-flash</option>
+                                <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite</option>
+                                <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite</option>
+                                <option value="gemini-flash-lite-latest">gemini-flash-lite-latest</option>
+                                <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview</option>
+                                <option value="gemini-pro-latest">gemini-pro-latest</option>
+                              </>
+                            )}
+                            {!availableModels.includes(mName) && ![
+                              'gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 
+                              'gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.1-pro-preview', 'gemini-pro-latest'
+                            ].includes(mName) && (
                               <option value="custom">Custom: {mName}</option>
                             )}
                           </select>
@@ -4677,7 +4717,7 @@ export default function App() {
                                 ...config,
                                 integration: {
                                   ...config.integration,
-                                  modelFallbacks: [...cur, 'gemini-3.5-flash-lite']
+                                  modelFallbacks: [...cur, availableModels[0] || 'gemini-3.5-flash-lite']
                                 }
                               });
                             }
@@ -4690,77 +4730,19 @@ export default function App() {
 
                       <button
                         type="button"
-                        onClick={() => setShowCustomModelBox(!showCustomModelBox)}
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: '600', color: '#047857', background: '#ECFDF5', border: '1px solid #A7F3D0', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer' }}
+                        onClick={handleScanModels}
+                        disabled={isScanningModels}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: '600', color: '#047857', background: '#ECFDF5', border: '1px solid #A7F3D0', padding: '6px 12px', borderRadius: '6px', cursor: isScanningModels ? 'not-allowed' : 'pointer', opacity: isScanningModels ? 0.7 : 1 }}
                       >
-                        <Plus size={13} /> {showCustomModelBox ? 'Close Custom Box' : 'Add Custom Model Name'}
+                        <RefreshCw size={13} className={isScanningModels ? 'animate-spin' : ''} /> 
+                        {isScanningModels ? 'Scanning Google API...' : 'Scan & Sync Available Models'}
                       </button>
                     </div>
 
-                    {showCustomModelBox && (
-                      <div style={{ marginTop: '4px', padding: '12px', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '6px' }}>
-                        <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', color: '#065F46', marginBottom: '6px' }}>
-                          Add Any Model ID Manually (e.g. gemini-3.8-flash, custom-tuned-model)
-                        </label>
-                        <div style={{ display: 'flex', gap: '6px' }}>
-                          <input
-                            type="text"
-                            placeholder="e.g. gemini-3.8-flash or gemini-ultra"
-                            value={customModelInput}
-                            onChange={e => setCustomModelInput(e.target.value)}
-                            onKeyDown={e => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                const trimmed = customModelInput.trim();
-                                if (trimmed) {
-                                  const cur = config.integration.modelFallbacks || ['gemini-3.5-flash', 'gemini-3.7-flash'];
-                                  if (cur.length < 5) {
-                                    setConfig({
-                                      ...config,
-                                      integration: {
-                                        ...config.integration,
-                                        modelFallbacks: [...cur, trimmed]
-                                      }
-                                    });
-                                    setCustomModelInput('');
-                                    setShowCustomModelBox(false);
-                                  } else {
-                                    alert('Maximum 5 fallback model slots reached. Remove a model first.');
-                                  }
-                                }
-                              }
-                            }}
-                            style={{ flex: 1, padding: '7px 10px', fontSize: '12px', border: '1px solid #86EFAC', borderRadius: '4px', background: '#FFFFFF' }}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const trimmed = customModelInput.trim();
-                              if (!trimmed) return;
-                              const cur = config.integration.modelFallbacks || ['gemini-3.5-flash', 'gemini-3.7-flash'];
-                              if (cur.length < 5) {
-                                setConfig({
-                                  ...config,
-                                  integration: {
-                                    ...config.integration,
-                                    modelFallbacks: [...cur, trimmed]
-                                  }
-                                });
-                                setCustomModelInput('');
-                                setShowCustomModelBox(false);
-                              } else {
-                                alert('Maximum 5 fallback model slots reached. Remove a model first.');
-                              }
-                            }}
-                            style={{ padding: '7px 14px', background: '#059669', color: 'white', border: 'none', borderRadius: '4px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                          >
-                            <Plus size={13} /> Add
-                          </button>
-                        </div>
-                        <p style={{ fontSize: '11px', color: '#047857', margin: '6px 0 0 0' }}>
-                          Added model will automatically be used in the fallback execution sequence.
-                        </p>
-                      </div>
+                    {scanError && (
+                      <p style={{ fontSize: '11px', color: '#DC2626', margin: '4px 0 0 0', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <AlertCircle size={11} /> Scan failed: {scanError}
+                      </p>
                     )}
                   </div>
                 </div>
