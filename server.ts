@@ -1,5 +1,6 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import cors from "cors";
@@ -559,10 +560,17 @@ IMPORTANT:
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), "dist");
+    // Production static serving
+    const possibleDistPaths = [
+      path.join(process.cwd(), "dist"),
+      path.resolve(__dirname, "dist"),
+      path.resolve(__dirname, "..", "dist"),
+      path.resolve(__dirname),
+    ];
+    const distPath = possibleDistPaths.find(p => fs.existsSync(path.join(p, "index.html"))) || path.join(process.cwd(), "dist");
+
     app.use(express.static(distPath));
-    // Express v5 syntax for fallback
-    app.get("*all", (req, res) => {
+    app.get("*", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
