@@ -570,7 +570,7 @@ IMPORTANT:
     const distPath = possibleDistPaths.find(p => fs.existsSync(path.join(p, "index.html"))) || path.join(process.cwd(), "dist");
 
     app.use(express.static(distPath));
-    app.get("*", (req, res) => {
+    app.get("*all", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
@@ -582,3 +582,4 @@ IMPORTANT:
 }
 
 startServer();
+// Force trigger GitHub sync
