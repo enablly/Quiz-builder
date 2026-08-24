@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@google/genai": "^2.16.0",
+    "@types/cors": "^2.8.19",
+    "@vitejs/plugin-react": "^4.2.1",
     "cors": "^2.8.6",
     "esbuild": "^0.28.1",
     "express": "^5.2.1",
@@ -18,11 +20,8 @@
     "lucide-react": "^0.344.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "tsx": "^4.23.9"
-  },
-  "devDependencies": {
-    "@types/cors": "^2.8.19",
-    "@vitejs/plugin-react": "^4.2.1",
+    "tsx": "^4.23.9",
     "vite": "^5.1.4"
-  }
+  },
+  "devDependencies": {}
 }
