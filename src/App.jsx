@@ -43,9 +43,9 @@ const DEFAULT_CONFIG = {
     disclaimer: "Confidential diagnostic prepared by Steelcase Applied Research + Consulting (ARC)."
   },
   aiPersona: {
-    role: "Senior Workplace Strategy Architect & AI Workplace Specialist at Steelcase Applied Research + Consulting (ARC)",
-    focusAreas: "Spatial adaptability, STC 38+ acoustic enclosures, cognitive recovery, agile pods, and power infrastructure",
-    tone: "Executive, authoritative, architectural, and data-driven"
+    role: "Senior Principal Workplace Strategy Architect & AI Workplace Fellow at Steelcase Applied Research + Consulting (ARC)",
+    focusAreas: "Physical space readiness for generative AI workflows, STC 38+ acoustic enclosures & speech privacy, cognitive focus sanctuaries, agile reconfigurable team neighborhoods, distributed mobile power density, and hybrid video meeting equity (ISO 22955 & Steelcase ARC benchmarks)",
+    tone: "Authoritative, architectural, diagnostic, executive-level, and rigorously grounded in workplace ergonomics and environmental psychology"
   },
   buildVersion: '1.01',
   content: {
@@ -81,7 +81,7 @@ const DEFAULT_CONFIG = {
       eyebrow: "02. AI Diagnostic",
       sectionHeading: "Technical Score Breakdown & Readiness Analysis",
       description: "Analytical interpretation of what your readiness score means for spatial performance, acoustic privacy, cognitive focus, and bottom-line productivity.",
-      prompt: "Analyze the organization's survey answers and overall score ({score}/100). Search online for recent verified information about {company}, focusing strictly on their workplace culture, return-to-office/hybrid policies, recent leadership/people movements, and office footprint changes.\n\nWrite a concise 2-paragraph analysis (max 150-200 words total):\n- Paragraph 1: Synthesize their survey score with their real-world corporate workplace context and recent workforce/leadership dynamics.\n- Paragraph 2: Highlight how their current physical workplace setup directly impacts employee focus, collaboration latency, and operational efficiency.",
+      prompt: "Evaluate {company}'s AI Workplace Readiness Index score ({score}/100) across the 6 core workplace dimensions (AI adoption, focus & cognitive performance, hybrid collaboration, workplace choice, employee experience, and future spatial adaptability).\n\nPerform a targeted web search on {company} to identify verified public intelligence regarding their industry footprint, office locations, return-to-office (RTO) policies, and technology workforce scale.\n\nWrite a 2-paragraph executive diagnostic (approx 160-200 words total):\n- Paragraph 1 (Diagnostic Baseline): Synthesize their specific score ({score}/100) with their organizational profile. Identify their primary physical workspace bottleneck (e.g. acoustic bleed from video calls, lack of solitary deep-work prompting pods, or static floorplate rigidity).\n- Paragraph 2 (Cognitive & Productivity Toll): Analyze how these spatial constraints induce context-switching latency (referencing the 23-minute focus recovery benchmark) and impede rapid generative AI experimentation.",
       ragFiles: []
     },
     {
@@ -99,7 +99,7 @@ const DEFAULT_CONFIG = {
       eyebrow: "04. Strategic Roadmap",
       sectionHeading: "High-Performance Spatial Optimization Roadmap",
       description: "Tailored strategic workplace interventions, architectural configurations, and actionable next steps.",
-      prompt: "Based on {company}'s survey responses, score ({score}/100), and verified workplace context, provide a concise, high-impact spatial roadmap (max 2 short paragraphs or 3 tight bullet points):\n- Outline 3 targeted interventions (e.g. acoustic focus micro-pods, agile reconfigurable team zones, and power drop flexibility).\n- Directly connect each intervention to the company's culture, people workflows, and surveyed friction points.\n- Keep the recommendations concise, punchy, and actionable.",
+      prompt: "Based on {company}'s diagnostic score ({score}/100), surveyed friction points, and workplace context, construct a prioritized 3-pillar spatial transformation roadmap for AI-enabled teams.\n\nFormulate 3 actionable interventions formatted as structured bullet points (approx 160-200 words total):\n- 1. Acoustic & Deep-Focus Sanctuaries: Implement high-STC (38+) micro-pods and quiet library zones within 30 feet of primary desk areas to protect high-intensity AI prompting and confidential hybrid video calls.\n- 2. Agile Reconfigurable Team Neighborhoods: Introduce mobile acoustic boundary screens and modular whiteboard topologies that allow sprint teams to pivot instantly between solo synthesis and active co-creation.\n- 3. Dynamic Power & Hybrid Meeting Equity: Deploy distributed mobile power hubs and sightline-optimized curved video settings with spatial audio for equal conversational parity between remote and in-person collaborators.",
       ragFiles: []
     },
     {
@@ -4089,57 +4089,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Studio: AI Persona & RAG Synthesis Directives */}
-            <div style={{ marginBottom: '28px', paddingTop: '20px', borderTop: '2px solid #E5E7EB' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', paddingBottom: '8px', borderBottom: '2px solid #E5E7EB' }}>
-                <span style={{ fontSize: '14px', fontWeight: '700', color: '#111827', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Sparkles size={16} color="#7C3AED" /> AI Persona &amp; Synthesis Directives
-                </span>
-              </div>
-              <p style={{ fontSize: '12px', color: '#6B7280', margin: '0 0 16px', lineHeight: 1.4 }}>
-                Instruct Gemini on how to tailor recommendations and strategic diagnoses for this assessment.
-              </p>
-
-              <div className="field-group">
-                <label>AI Expert Role &amp; Identity</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Senior Workplace Strategy Architect at Steelcase ARC"
-                  value={config.aiPersona?.role || ''}
-                  onChange={e => setConfig(prev => ({
-                    ...prev,
-                    aiPersona: { ...prev.aiPersona, role: e.target.value }
-                  }))}
-                />
-              </div>
-
-              <div className="field-group">
-                <label>Domain Focus &amp; Architectural Anchor Areas</label>
-                <textarea
-                  placeholder="e.g. STC 38+ acoustic enclosures, agile pods, sit-to-stand posture change..."
-                  rows={3}
-                  value={config.aiPersona?.focusAreas || ''}
-                  onChange={e => setConfig(prev => ({
-                    ...prev,
-                    aiPersona: { ...prev.aiPersona, focusAreas: e.target.value }
-                  }))}
-                />
-              </div>
-
-              <div className="field-group">
-                <label>Diagnostic Tone &amp; Voice</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Executive, authoritative, architectural, and data-driven"
-                  value={config.aiPersona?.tone || ''}
-                  onChange={e => setConfig(prev => ({
-                    ...prev,
-                    aiPersona: { ...prev.aiPersona, tone: e.target.value }
-                  }))}
-                />
-              </div>
-            </div>
-
             {/* Studio: Result CTAs & Consultation Hooks */}
             <div style={{ marginBottom: '28px', paddingTop: '20px', borderTop: '2px solid #E5E7EB' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', paddingBottom: '8px', borderBottom: '2px solid #E5E7EB' }}>
@@ -4214,6 +4163,70 @@ export default function App() {
                     ...prev,
                     ctaConfig: { ...prev.ctaConfig, disclaimer: e.target.value }
                   }))}
+                />
+              </div>
+            </div>
+
+            {/* Studio: AI Persona & RAG Synthesis Directives (Moved above Advanced Settings with Light Purple Background) */}
+            <div style={{ 
+              marginBottom: '28px', 
+              padding: '18px 20px', 
+              background: '#F5F3FF', 
+              border: '1.5px solid #DDD6FE', 
+              borderRadius: '8px',
+              boxShadow: '0 1px 2px rgba(124, 58, 237, 0.05)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', paddingBottom: '10px', borderBottom: '1px solid #EDE9FE' }}>
+                <span style={{ fontSize: '13.5px', fontWeight: '700', color: '#4C1D95', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Sparkles size={16} color="#7C3AED" /> AI Persona &amp; Synthesis Directives
+                </span>
+                <span style={{ fontSize: '10.5px', background: '#EDE9FE', color: '#6D28D9', padding: '2px 8px', borderRadius: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Diagnostic Context
+                </span>
+              </div>
+              <p style={{ fontSize: '12px', color: '#5B21B6', margin: '0 0 16px', lineHeight: 1.45 }}>
+                Instruct Gemini on the expert persona, domain anchors, and diagnostic criteria used when generating the AI report (Sections 2 &amp; 4).
+              </p>
+
+              <div className="field-group" style={{ marginBottom: '14px' }}>
+                <label style={{ color: '#4C1D95', fontSize: '11px', fontWeight: 700 }}>AI Expert Role &amp; Identity</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Senior Principal Workplace Strategy Architect &amp; AI Workplace Fellow at Steelcase Applied Research + Consulting (ARC)"
+                  value={config.aiPersona?.role || ''}
+                  onChange={e => setConfig(prev => ({
+                    ...prev,
+                    aiPersona: { ...prev.aiPersona, role: e.target.value }
+                  }))}
+                  style={{ background: '#FFFFFF', borderColor: '#C4B5FD' }}
+                />
+              </div>
+
+              <div className="field-group" style={{ marginBottom: '14px' }}>
+                <label style={{ color: '#4C1D95', fontSize: '11px', fontWeight: 700 }}>Domain Focus &amp; Architectural Anchor Areas</label>
+                <textarea
+                  placeholder="e.g. Physical space readiness for generative AI, STC 38+ acoustic privacy, cognitive focus sanctuaries, agile pods, power density, and hybrid meeting equity"
+                  rows={3}
+                  value={config.aiPersona?.focusAreas || ''}
+                  onChange={e => setConfig(prev => ({
+                    ...prev,
+                    aiPersona: { ...prev.aiPersona, focusAreas: e.target.value }
+                  }))}
+                  style={{ background: '#FFFFFF', borderColor: '#C4B5FD', minHeight: '76px' }}
+                />
+              </div>
+
+              <div className="field-group" style={{ marginBottom: '4px' }}>
+                <label style={{ color: '#4C1D95', fontSize: '11px', fontWeight: 700 }}>Diagnostic Tone &amp; Voice</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Authoritative, architectural, diagnostic, executive-level, and data-driven"
+                  value={config.aiPersona?.tone || ''}
+                  onChange={e => setConfig(prev => ({
+                    ...prev,
+                    aiPersona: { ...prev.aiPersona, tone: e.target.value }
+                  }))}
+                  style={{ background: '#FFFFFF', borderColor: '#C4B5FD' }}
                 />
               </div>
             </div>

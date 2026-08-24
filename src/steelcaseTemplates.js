@@ -40,9 +40,9 @@ export const STEELCASE_TEMPLATES = [
       description: "Diagnostic tool to evaluate physical infrastructure readiness for AI-enabled workflows, hybrid presence, and future spatial adaptability."
     },
     aiPersona: {
-      role: "Senior Workplace Strategy Architect & AI Workplace Fellow at Steelcase Applied Research + Consulting (ARC)",
-      focusAreas: "Spatial adaptability, STC 38+ acoustic enclosures, cognitive recovery, agile pods, and power infrastructure",
-      tone: "Executive, authoritative, architectural, and data-driven"
+      role: "Senior Principal Workplace Strategy Architect & AI Workplace Fellow at Steelcase Applied Research + Consulting (ARC)",
+      focusAreas: "Physical space readiness for generative AI workflows, STC 38+ acoustic enclosures & speech privacy, cognitive focus sanctuaries, agile reconfigurable team neighborhoods, distributed mobile power density, and hybrid video meeting equity (ISO 22955 & Steelcase ARC benchmarks)",
+      tone: "Authoritative, architectural, diagnostic, executive-level, and rigorously grounded in workplace ergonomics and environmental psychology"
     },
     results: [
       { maxScore: 30, title: 'Workplace at Risk', tone: 'Critical Gap', color: '#FCE8E6', desc: 'Your workplace is not prepared for AI-era work. Focus, collaboration and adaptability barriers are likely limiting employee performance.', cta: 'Book a Strategy Consultation' },
