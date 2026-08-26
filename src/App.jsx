@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Settings, Plus, Trash2, CheckCircle2, BarChart2, Mail, Lock, ArrowRight, ArrowLeft, ArrowUp, ArrowDown, Download, Code, Phone, RefreshCw, Eye, FileText, Upload, Image, AlertCircle, Globe, ExternalLink, Send, Key, Check, Bold, Italic, Underline, Strikethrough, List, ListOrdered, Quote, Highlighter, Heading4, User, Sparkles, Activity } from 'lucide-react';
+import { Settings, Plus, Trash2, CheckCircle2, BarChart2, Mail, Lock, ArrowRight, ArrowLeft, ArrowUp, ArrowDown, Download, Code, Phone, RefreshCw, Eye, FileText, Upload, Image, AlertCircle, Globe, ExternalLink, Send, Key, Check, Bold, Italic, Underline, Strikethrough, List, ListOrdered, Quote, Highlighter, Heading4, User, Sparkles, Activity, Link2, Edit3 } from 'lucide-react';
 import JSZip from 'jszip';
 import RichTextEditor from './RichTextEditor';
 import { generateStandaloneHtml, generateReadme, generateLeadPayloadSchema } from './generateStandaloneQuiz';
 import { STEELCASE_TEMPLATES } from './steelcaseTemplates';
+import { useBuilderLock, LockBottomBar, LockNameModal, ForceTakeoverModal } from './useBuilderLock';
 
 const DEFAULT_CONFIG = {
   activeTemplateId: 'steelcase-arc-ai',
@@ -183,7 +184,7 @@ const STYLES = `
   .builder-tabs { display: flex; border-bottom: 1px solid #D1D5DB; }
   .tab-btn { flex: 1; padding: 12px 0; background: none; border: none; font-size: 13px; font-weight: 600; cursor: pointer; color: #6B7280; border-bottom: 2px solid transparent; }
   .tab-btn.active { color: #2563EB; border-bottom-color: #2563EB; }
-  .builder-content { flex: 1; overflow-y: auto; padding: 20px; }
+  .builder-content { flex: 1; overflow-y: auto; padding: 20px; padding-bottom: 56px; }
   
   .field-group { margin-bottom: 20px; }
   .field-group label { display: block; font-size: 12px; font-weight: 600; text-transform: uppercase; color: #4B5563; margin-bottom: 8px; }
@@ -195,7 +196,7 @@ const STYLES = `
   .opt-row input { margin: 0; }
   
   .preview-area { flex: 1; background: var(--bg-page, #F1F3F4); overflow-y: auto; position: relative; display: flex; flex-direction: column; }
-  .preview-scroll-body { flex: 1; overflow-y: auto; display: flex; justify-content: center; padding: 40px 20px; }
+  .preview-scroll-body { flex: 1; overflow-y: auto; display: flex; justify-content: center; padding: 40px 20px 70px 20px; }
   .quiz-shell { width: 100%; max-width: 900px; }
   .quiz-hero { background: var(--header-bg, #3C4043); border-radius: 8px; padding: 24px 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 24px; color: white; display: grid; grid-template-columns: 1fr 250px; gap: 32px; align-items: center; }
   .quiz-hero .eyebrow { font-size: 12px; font-weight: 600; text-transform: uppercase; color: #9AA0A6; margin-bottom: 8px; display: inline-flex; align-items: center; }
@@ -638,6 +639,32 @@ export default function App() {
   const [publishStatus, setPublishStatus] = useState(null);
   const [showTokenSecret, setShowTokenSecret] = useState(false);
   const [publishCountdown, setPublishCountdown] = useState(0);
+
+  // Firestore Real-time Builder Lock
+  const lockHook = useBuilderLock();
+
+  // Live Builder URL config
+  const [liveBuilderUrl, setLiveBuilderUrl] = useState(() => {
+    return localStorage.getItem('qb_live_builder_url') || (window.location.origin + window.location.pathname);
+  });
+  const [isEditingLiveUrl, setIsEditingLiveUrl] = useState(false);
+  const [liveUrlInput, setLiveUrlInput] = useState('');
+
+  const handleEditLiveUrlClick = () => {
+    setLiveUrlInput(liveBuilderUrl);
+    setIsEditingLiveUrl(true);
+  };
+
+  const handleSaveLiveUrl = () => {
+    let clean = liveUrlInput.trim();
+    if (clean && !clean.startsWith('http://') && !clean.startsWith('https://')) {
+      clean = 'https://' + clean;
+    }
+    const finalUrl = clean || (window.location.origin + window.location.pathname);
+    setLiveBuilderUrl(finalUrl);
+    localStorage.setItem('qb_live_builder_url', finalUrl);
+    setIsEditingLiveUrl(false);
+  };
 
   // GitHub Pages propagation countdown timer
   useEffect(() => {
@@ -1832,34 +1859,133 @@ export default function App() {
       {/* BUILDER SIDEBAR */}
       {!isVisitorPreview && (
         <div className="builder-sidebar">
-          <div className="builder-header" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '12px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h2 style={{ margin: 0 }}><Settings size={20} /> {config.content?.builderTitle || 'Quiz Builder'}</h2>
-              <div style={{display:'flex', gap:8, alignItems:'center'}}>
-                <button 
-                  onClick={() => {
-                    setShowPublishModal(true);
-                    handlePublishToGitHub();
-                  }} 
-                  style={{
-                    background: '#059669', 
-                    color: 'white', 
-                    border: 'none', 
-                    padding: '6px 12px', 
-                    borderRadius: '6px', 
-                    fontSize: '12px', 
-                    fontWeight: '600', 
-                    display: 'inline-flex', 
-                    alignItems: 'center', 
-                    gap: '5px', 
-                    cursor: 'pointer',
-                    boxShadow: '0 1px 2px rgba(0,0,0,0.08)'
-                  }} 
-                  title="1-Click Publish live quiz to GitHub Pages"
-                >
-                  <Globe size={14}/> Publish
-                </button>
-                <button className="builder-export-btn" onClick={exportGitHubFiles} style={{padding: '6px 10px', fontSize: 12}}><Download size={14}/> Export</button>
+          <div className="builder-header" style={{ padding: '12px 14px', borderBottom: '1px solid #D1D5DB', background: '#F9FAFB' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%', gap: '8px' }}>
+              {/* Left Title */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', paddingTop: '6px', flexShrink: 0 }}>
+                <Settings size={18} color="#374151" />
+                <span style={{ fontSize: '15px', fontWeight: '700', color: '#111827', whiteSpace: 'nowrap' }}>
+                  {config.content?.builderTitle || 'Quiz Builder 4.22'}
+                </span>
+              </div>
+
+              {/* Right Action Columns */}
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                {/* Column 1: Publish Quiz + Export Quiz · View */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '95px' }}>
+                  <button 
+                    onClick={() => {
+                      setShowPublishModal(true);
+                      handlePublishToGitHub();
+                    }} 
+                    style={{
+                      background: '#059669', 
+                      color: 'white', 
+                      border: 'none', 
+                      padding: '6px 10px', 
+                      borderRadius: '5px', 
+                      fontSize: '11px', 
+                      fontWeight: '700', 
+                      display: 'inline-flex', 
+                      alignItems: 'center', 
+                      gap: '5px', 
+                      cursor: 'pointer',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                      whiteSpace: 'nowrap',
+                      width: '100%',
+                      justifyContent: 'center'
+                    }} 
+                    title="1-Click Publish live quiz to GitHub Pages"
+                  >
+                    <Globe size={13}/> Publish Quiz
+                  </button>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '10px' }}>
+                    <button
+                      type="button"
+                      onClick={exportGitHubFiles}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        padding: 0,
+                        color: '#2563EB',
+                        textDecoration: 'underline',
+                        fontSize: '10px',
+                        fontWeight: '500',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      Export Quiz
+                    </button>
+                    <span style={{ color: '#9CA3AF' }}>·</span>
+                    <button
+                      type="button"
+                      onClick={() => setIsVisitorPreview(true)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        padding: 0,
+                        color: '#2563EB',
+                        textDecoration: 'underline',
+                        fontSize: '10px',
+                        fontWeight: '500',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      View
+                    </button>
+                  </div>
+                </div>
+
+                {/* Column 2: Live Builder + Edit Live Url */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '95px' }}>
+                  <a
+                    href={liveBuilderUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      background: '#4338CA', 
+                      color: 'white', 
+                      border: 'none', 
+                      padding: '6px 10px', 
+                      borderRadius: '5px', 
+                      fontSize: '11px', 
+                      fontWeight: '700', 
+                      display: 'inline-flex', 
+                      alignItems: 'center', 
+                      gap: '5px', 
+                      cursor: 'pointer',
+                      textDecoration: 'none',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                      whiteSpace: 'nowrap',
+                      width: '100%',
+                      justifyContent: 'center'
+                    }}
+                    title="Open Live Deployed Builder"
+                  >
+                    <ExternalLink size={13}/> Live Builder
+                  </a>
+                  <div style={{ marginTop: '4px', fontSize: '10px' }}>
+                    <button
+                      type="button"
+                      onClick={handleEditLiveUrlClick}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        padding: 0,
+                        color: '#2563EB',
+                        textDecoration: 'underline',
+                        fontSize: '10px',
+                        fontWeight: '500',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      Edit Live Url
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1873,7 +1999,48 @@ export default function App() {
           </button>
         </div>
 
-        <div className="builder-content">
+        <div 
+          className="builder-content"
+          style={lockHook.lockState.isLocked ? { opacity: 0.65, pointerEvents: 'none', position: 'relative', userSelect: 'none' } : { position: 'relative' }}
+        >
+          {lockHook.lockState.isLocked && (
+            <div style={{
+              position: 'sticky',
+              top: 0,
+              zIndex: 50,
+              background: '#FEE2E2',
+              border: '1px solid #F87171',
+              borderRadius: '6px',
+              padding: '10px 14px',
+              marginBottom: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              pointerEvents: 'auto',
+              color: '#991B1B',
+              fontSize: '12px'
+            }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
+                <Lock size={14} color="#DC2626" /> Read Only: Locked by {lockHook.lockState.lockedBy}
+              </span>
+              <button
+                type="button"
+                onClick={lockHook.requestEditAccess}
+                style={{
+                  background: '#DC2626',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  padding: '4px 8px',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Request Access
+              </button>
+            </div>
+          )}
 
           {activeTab === 'reports' && (
             <div>
@@ -6088,6 +6255,76 @@ export default function App() {
             )}
           </div>
         </div>
+      )}
+
+      {/* EDIT LIVE URL MODAL */}
+      {isEditingLiveUrl && (
+        <div className="modal-overlay" style={{ zIndex: 10000 }}>
+          <div className="modal-content" style={{ maxWidth: '480px', padding: '24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+              <div style={{ background: '#EEF2FF', padding: '10px', borderRadius: '50%', color: '#4338CA' }}>
+                <Link2 size={22} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '17px', color: '#1E1B4B' }}>Edit Live Builder URL</h3>
+                <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#64748B' }}>
+                  Configure where the "Live Builder" button links to.
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={(e) => { e.preventDefault(); handleSaveLiveUrl(); }}>
+              <div className="field-group" style={{ marginBottom: '16px' }}>
+                <label style={{ fontSize: '11px', fontWeight: '700', color: '#4B5563', display: 'block', marginBottom: '6px' }}>
+                  Target Destination URL:
+                </label>
+                <input
+                  type="text"
+                  placeholder="https://your-production-app.run.app"
+                  value={liveUrlInput}
+                  onChange={(e) => setLiveUrlInput(e.target.value)}
+                  autoFocus
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    fontSize: '13px',
+                    border: '1.5px solid #C7D2FE',
+                    borderRadius: '6px',
+                    outline: 'none',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingLiveUrl(false)}
+                  className="btn btn-secondary"
+                  style={{ fontSize: '13px' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ fontSize: '13px', background: '#4338CA' }}
+                >
+                  Save URL
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* FIRESTORE REAL-TIME COLLABORATION LOCK BOTTOM BAR & MODALS */}
+      {!isVisitorPreview && (
+        <>
+          <LockBottomBar lockHook={lockHook} />
+          <LockNameModal lockHook={lockHook} />
+          <ForceTakeoverModal lockHook={lockHook} />
+        </>
       )}
     </div>
   );
