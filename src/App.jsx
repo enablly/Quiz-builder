@@ -5565,11 +5565,31 @@ export default function App() {
                         
                         <button 
                           className="btn btn-primary" 
-                          disabled
-                          style={{width: '100%', justifyContent: 'center', marginBottom: 12, opacity: 0.9, cursor: 'default'}}
+                          onClick={() => {
+                            if (config.ctaConfig?.primaryCtaType === 'redirect' && config.ctaConfig?.redirectUrl) {
+                              window.open(config.ctaConfig.redirectUrl, '_blank');
+                            } else {
+                              requestAssessment();
+                            }
+                          }}
+                          disabled={applied && config.ctaConfig?.primaryCtaType !== 'redirect'}
+                          style={{width: '100%', justifyContent: 'center', marginBottom: 12, backgroundColor: applied ? '#9CA3AF' : 'var(--primary-color)'}}
                         >
-                          <Mail size={16}/> Apply Now
+                          <Mail size={16}/> {applied ? "Request Sent" : (config.ctaConfig?.primaryCtaText || "Apply Now")}
                         </button>
+                        
+                        {applied && !telSent && config.ctaConfig?.secondaryCtaEnabled !== false && (
+                          <div style={{background:'white', padding:16, border:'1px solid #E5E7EB', borderRadius:6, marginTop:12}}>
+                            <label style={{fontSize:12, fontWeight:600, display:'block', marginBottom:8}}>{config.ctaConfig?.secondaryCtaText || "Add Telephone (Optional)"}</label>
+                            <div style={{display:'flex', gap:8}}>
+                              <input type="tel" placeholder="+1..." value={tel} onChange={e=>setTel(e.target.value)} style={{flex:1, padding:'8px 12px', border:'1px solid #D1D5DB', borderRadius:4}} />
+                              <button onClick={submitTel} className="btn btn-secondary" style={{padding:'8px 12px'}}>Send</button>
+                            </div>
+                          </div>
+                        )}
+                        {telSent && (
+                          <div style={{fontSize:13, color:'#059669', display:'flex', alignItems:'center', gap:6, marginTop:8}}><CheckCircle2 size={14}/> Phone saved</div>
+                        )}
                         
                         <div style={{fontSize:12, color:'#059669', display:'flex', alignItems:'center', gap:6, justifyContent:'center', marginTop:12}}>
                           <CheckCircle2 size={14}/> Qualified for Consultation

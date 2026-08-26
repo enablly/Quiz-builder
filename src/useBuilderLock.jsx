@@ -26,6 +26,7 @@ export function useBuilderLock() {
   });
 
   const [isPromptOpen, setIsPromptOpen] = useState(false);
+  const [promptAction, setPromptAction] = useState('claim'); // 'claim' or 'request'
   const [nameInput, setNameInput] = useState('');
   const [showTakeoverConfirm, setShowTakeoverConfirm] = useState(false);
   const [notification, setNotification] = useState(null);
@@ -64,7 +65,7 @@ export function useBuilderLock() {
         });
 
         // If I am owner and someone requested edit access
-        if (isOwner && data.transferRequestedBy && data.transferRequestedBy !== currentUser) {
+        if (isOwner && data.transferRequestedBy && data.transferRequestedClientId !== myClientId) {
           setNotification({
             type: 'access_requested',
             message: `${data.transferRequestedBy} requested edit access to the Quiz Builder.`,
@@ -94,6 +95,7 @@ export function useBuilderLock() {
   const touchLock = async (authorName) => {
     const userToUse = authorName || currentUser;
     if (!userToUse) {
+      setPromptAction('claim');
       setIsPromptOpen(true);
       return false;
     }
@@ -133,21 +135,30 @@ export function useBuilderLock() {
   }, [lockState.isOwner, currentUser, myClientId]);
 
   // Request Edit Access
-  const requestEditAccess = async () => {
-    if (!currentUser) {
-      setIsPromptOpen(true);
-      return;
+  const requestEditAccess = async (requestorName) => {
+    let finalName = typeof requestorName === 'string' ? requestorName : currentUser;
+    if (finalName && finalName !== currentUser) {
+      setCurrentUser(finalName);
+      localStorage.setItem('qb_author_name', finalName);
     }
+    
+    // If somehow empty, fallback
+    if (!finalName) {
+      finalName = 'Another Editor';
+    }
+
     try {
       const lockRef = doc(db, 'builder_locks', 'active_session');
       await updateDoc(lockRef, {
-        transferRequestedBy: currentUser,
+        transferRequestedBy: finalName,
+        transferRequestedClientId: myClientId,
         transferRequestTime: Date.now()
       });
       setNotification({
         type: 'info',
         message: `Edit access requested! Notified ${lockState.lockedBy || 'the active editor'}.`
       });
+      setIsPromptOpen(false);
     } catch (e) {
       console.error("Error requesting edit access:", e);
     }
@@ -215,6 +226,8 @@ export function useBuilderLock() {
     lockState,
     isPromptOpen,
     setIsPromptOpen,
+    promptAction,
+    setPromptAction,
     nameInput,
     setNameInput,
     showTakeoverConfirm,
@@ -234,6 +247,7 @@ export function LockBottomBar({ lockHook }) {
     currentUser,
     lockState,
     setIsPromptOpen,
+    setPromptAction,
     setShowTakeoverConfirm,
     requestEditAccess,
     forceTakeover,
@@ -289,7 +303,10 @@ export function LockBottomBar({ lockHook }) {
               <strong style={{ color: '#1D4ED8' }}>EDITING ACTIVE:</strong> You are editing as{' '}
               <button
                 type="button"
-                onClick={() => setIsPromptOpen(true)}
+                onClick={() => {
+                  setPromptAction('claim');
+                  setIsPromptOpen(true);
+                }}
                 style={{
                   background: '#DBEAFE',
                   border: '1px solid #93C5FD',
@@ -337,7 +354,10 @@ export function LockBottomBar({ lockHook }) {
             </button>
             <button
               type="button"
-              onClick={requestEditAccess}
+              onClick={() => {
+                setPromptAction('request');
+                setIsPromptOpen(true);
+              }}
               style={{
                 background: '#EF4444',
                 border: 'none',
@@ -403,9 +423,11 @@ export function LockBottomBar({ lockHook }) {
 }
 
 export function LockNameModal({ lockHook }) {
-  const { isPromptOpen, setIsPromptOpen, nameInput, setNameInput, saveUserName, currentUser } = lockHook;
+  const { isPromptOpen, setIsPromptOpen, promptAction, nameInput, setNameInput, saveUserName, requestEditAccess, currentUser } = lockHook;
 
   if (!isPromptOpen) return null;
+
+  const isRequest = promptAction === 'request';
 
   return (
     <div className="modal-overlay" style={{ zIndex: 10000 }}>
@@ -415,14 +437,23 @@ export function LockNameModal({ lockHook }) {
             <User size={22} />
           </div>
           <div>
-            <h3 style={{ margin: 0, fontSize: '17px', color: '#0F172A' }}>Collaborator Name</h3>
+            <h3 style={{ margin: 0, fontSize: '17px', color: '#0F172A' }}>
+              {isRequest ? 'Request Edit Access' : 'Collaborator Name'}
+            </h3>
             <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#64748B' }}>
-              Enter your name to claim the live editing lock.
+              {isRequest ? 'Enter your name so the current editor knows who is asking.' : 'Enter your name to claim the live editing lock.'}
             </p>
           </div>
         </div>
-
-        <form onSubmit={(e) => { e.preventDefault(); saveUserName(nameInput || currentUser || 'Adam Lau (admin)'); }}>
+        <form onSubmit={(e) => { 
+          e.preventDefault(); 
+          const finalName = nameInput || currentUser || 'Adam Lau (admin)';
+          if (isRequest) {
+            requestEditAccess(finalName);
+          } else {
+            saveUserName(finalName); 
+          }
+        }}>
           <input
             type="text"
             placeholder="e.g. Adam Lau (admin) or Sarah Jenkins"
@@ -455,7 +486,7 @@ export function LockNameModal({ lockHook }) {
               className="btn btn-primary"
               style={{ fontSize: '13px', background: '#1D4ED8' }}
             >
-              Set Name &amp; Claim Lock
+              {isRequest ? 'Send Request' : 'Set Name & Claim Lock'}
             </button>
           </div>
         </form>
