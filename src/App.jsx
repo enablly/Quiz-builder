@@ -945,6 +945,39 @@ export default function App() {
   };
 
   const handleAiContentClick = (e) => {
+    const applyBtn = e.target.closest('#preview-btn-apply');
+    if (applyBtn) {
+      e.preventDefault();
+      if (!applyBtn.hasAttribute('disabled')) {
+        const ctaType = applyBtn.getAttribute('data-cta-type');
+        const ctaUrl = applyBtn.getAttribute('data-cta-url');
+        if (ctaType === 'redirect' && ctaUrl) {
+          window.open(ctaUrl, '_blank');
+        } else {
+          requestAssessment();
+        }
+      }
+      return;
+    }
+
+    const sendBtn = e.target.closest('#preview-btn-send-tel');
+    if (sendBtn) {
+      e.preventDefault();
+      const telInput = document.getElementById('preview-input-tel');
+      if (telInput && telInput.value) {
+        setTel(telInput.value);
+        setTelSent(true);
+        submitToGoogle({ 
+          action: "update", 
+          email: lead.email, 
+          tel: telInput.value, 
+          phone: telInput.value, 
+          timestamp: new Date().toISOString() 
+        });
+      }
+      return;
+    }
+
     const link = e.target.closest('a');
     if (link) {
       const href = link.getAttribute('href');
@@ -1410,7 +1443,9 @@ export default function App() {
           
           <button 
             type="button" 
-            onclick="${config.ctaConfig?.primaryCtaType === 'redirect' ? `window.open('${config.ctaConfig.redirectUrl}', '_blank')` : 'window.requestAssessment ? window.requestAssessment() : null'}" 
+            id="preview-btn-apply"
+            data-cta-type="${config.ctaConfig?.primaryCtaType || 'in_app'}"
+            data-cta-url="${config.ctaConfig?.redirectUrl || ''}"
             style="width: 100%; justify-content: center; margin-bottom: 12px; background-color: ${applied && config.ctaConfig?.primaryCtaType !== 'redirect' ? '#9CA3AF' : 'var(--primary-color)'}; color: #FFFFFF; font-weight: 600; font-size: 14px; padding: 12px 28px; border-radius: 8px; border: none; cursor: ${applied && config.ctaConfig?.primaryCtaType !== 'redirect' ? 'default' : 'pointer'}; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s ease; box-shadow: 0 2px 6px rgba(0,0,0,0.15);"
             ${applied && config.ctaConfig?.primaryCtaType !== 'redirect' ? 'disabled' : ''}
           >
@@ -1421,8 +1456,8 @@ export default function App() {
             <div style="background: white; padding: 16px; border: 1px solid #E5E7EB; border-radius: 6px; margin-top: 12px;">
               <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 8px; color: #111827;">${config.ctaConfig?.secondaryCtaText || "Add Telephone (Optional)"}</label>
               <div style="display: flex; gap: 8px;">
-                <input type="tel" placeholder="+1..." value="${tel || ''}" onchange="window.telValue = this.value;" style="flex: 1; padding: 8px 12px; border: 1px solid #D1D5DB; border-radius: 4px;" />
-                <button type="button" onclick="window.submitTel ? window.submitTel() : null" style="padding: 8px 12px; background: #E5E7EB; color: #374151; border: none; border-radius: 4px; font-weight: 500; cursor: pointer;">Send</button>
+                <input type="tel" id="preview-input-tel" placeholder="+1..." value="${tel || ''}" style="flex: 1; padding: 8px 12px; border: 1px solid #D1D5DB; border-radius: 4px;" />
+                <button type="button" id="preview-btn-send-tel" style="padding: 8px 12px; background: #E5E7EB; color: #374151; border: none; border-radius: 4px; font-weight: 500; cursor: pointer;">Send</button>
               </div>
             </div>
           ` : ''}

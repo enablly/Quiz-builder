@@ -258,16 +258,8 @@ IMPORTANT:
         "gemini-pro-latest"
       ];
 
-      // Combine user selection with guaranteed healthy fallbacks
-      const baseModels = Array.from(new Set([...userFallbacks, ...healthyDefaults])).slice(0, 6);
-
-      // Implement Round Robin Load Balancing: start from a different index each time based on current time
-      // This ensures we distribute load across models equally to avoid rate limits
-      const startIndex = Math.floor(Date.now() / 1000) % baseModels.length;
-      const modelsToTry = [
-        ...baseModels.slice(startIndex),
-        ...baseModels.slice(0, startIndex)
-      ];
+      // Option A: Prioritize the user's exact priority sequence, then fall back to top healthy defaults, capping at top 3 total models.
+      const modelsToTry = Array.from(new Set([...userFallbacks, ...healthyDefaults])).slice(0, 3);
 
       thinkingLogs.push(`[${timestamp()}] [AI Engine] Initiated diagnostic generator for: "${company || 'Target Organization'}"`);
       thinkingLogs.push(`[${timestamp()}] [AI Engine] Priority fallback sequence (${modelsToTry.length} models): ${modelsToTry.join(', ')}`);
@@ -292,11 +284,24 @@ IMPORTANT:
         return status === 429 || status === 404 || msg.includes("429") || msg.includes("404") || msg.includes("not_found") || msg.includes("not found") || msg.includes("quota") || msg.includes("resource_exhausted") || msg.includes("rate limit") || msg.includes("unavailable") || msg.includes("503");
       };
 
+      const TOTAL_TIMEOUT_BUDGET_MS = 53000; // Total response budget to complete before Cloud Run 60s gateway timeout
+
       for (const modelName of modelsToTry) {
+        const elapsed = Date.now() - startTime;
+        const timeLeft = TOTAL_TIMEOUT_BUDGET_MS - elapsed;
+        
+        // If we have less than 5 seconds left in the overall gateway budget, stop cycling so we can return the high-quality local fallback safely.
+        if (timeLeft < 5000) {
+          thinkingLogs.push(`[${timestamp()}] [AI Engine] Budget constraint reached (${Math.round(timeLeft / 1000)}s left). Skipping remaining models to generate authoritative fallback.`);
+          break;
+        }
+
+        // Give the current model up to 40 seconds (or remaining budget if lower)
+        const currentTimeoutMs = Math.min(40000, timeLeft);
         let sources: Array<{ title: string; uri: string }> = [];
         try {
-          thinkingLogs.push(`[${timestamp()}] [Gemini API] Querying ${modelName}...`);
-          console.log(`[AI Diagnosis] Requesting generation with model: ${modelName}...`);
+          thinkingLogs.push(`[${timestamp()}] [Gemini API] Querying ${modelName} with ${Math.round(currentTimeoutMs / 1000)}s timeout...`);
+          console.log(`[AI Diagnosis] Requesting generation with model: ${modelName} (Timeout: ${currentTimeoutMs}ms)...`);
           
           // Try standard generation directly for fast, high-reliability live AI analysis
           const response = await runWithTimeout(
@@ -304,8 +309,8 @@ IMPORTANT:
               model: modelName,
               contents: promptStr,
             }),
-            25000,
-            `Model ${modelName} timed out after 25s`
+            currentTimeoutMs,
+            `Model ${modelName} timed out after ${Math.round(currentTimeoutMs / 1000)}s`
           );
 
           if (response && response.text) {
