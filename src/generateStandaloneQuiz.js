@@ -702,6 +702,37 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
           </div>
         \`;
       }
+      
+      syncCtaStates();
+    }
+
+    function syncCtaStates() {
+      var isRedirect = QUIZ_CONFIG.ctaConfig && QUIZ_CONFIG.ctaConfig.primaryCtaType === 'redirect';
+      var primaryText = escapeHtml((QUIZ_CONFIG.ctaConfig && QUIZ_CONFIG.ctaConfig.primaryCtaText) || "Apply Now");
+      
+      var ctaBtn = document.getElementById('btn-apply-cta');
+      var ctaBtnBottom = document.getElementById('btn-apply-cta-bottom');
+      
+      if (ctaBtn) {
+        ctaBtn.disabled = (isApplied && !isRedirect);
+        ctaBtn.style.backgroundColor = (isApplied && !isRedirect) ? '#9CA3AF' : 'var(--primary-color)';
+        ctaBtn.innerHTML = (isApplied && !isRedirect) ? '✓ Request Sent' : '✉ ' + primaryText;
+      }
+      if (ctaBtnBottom) {
+        ctaBtnBottom.disabled = (isApplied && !isRedirect);
+        ctaBtnBottom.style.backgroundColor = (isApplied && !isRedirect) ? '#9CA3AF' : 'var(--primary-color)';
+        ctaBtnBottom.innerHTML = (isApplied && !isRedirect) ? '✓ Request Sent' : '✉ ' + primaryText;
+      }
+
+      var telBox = document.getElementById('tel-box');
+      var telBoxBottom = document.getElementById('tel-box-bottom');
+      if (telBox) telBox.style.display = (isApplied && !telSent && !isRedirect) ? 'block' : 'none';
+      if (telBoxBottom) telBoxBottom.style.display = (isApplied && !telSent && !isRedirect) ? 'block' : 'none';
+
+      var telMsg = document.getElementById('tel-saved-msg');
+      var telMsgBottom = document.getElementById('tel-saved-msg-bottom');
+      if (telMsg) telMsg.style.display = telSent ? 'block' : 'none';
+      if (telMsgBottom) telMsgBottom.style.display = telSent ? 'block' : 'none';
     }
 
     function selectAnswer(qId, val) {
@@ -1409,6 +1440,8 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
       const companyName = escapeHtml(lead.company || 'Organization');
       const leadNameStr = escapeHtml(lead.name || 'Executive');
       const leadRoleStr = escapeHtml(lead.role || 'Workplace Leader');
+      const phoneStr = lead.phone ? ' &nbsp;|&nbsp; <strong>Phone:</strong> ' + escapeHtml(lead.phone) : '';
+      const dateStr = new Date().toLocaleDateString();
       const score = calculateScore();
       const reportHtml = window.standaloneAiReport || generateStaticAiReport(score, lead.company, lead.name);
 
@@ -1443,7 +1476,7 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
       printDoc.write('@media print { .no-print { display: none !important; } body { padding: 0; } }');
       printDoc.write('</style></head><body>');
       printDoc.write('<div class="print-bar no-print"><span style="font-size: 13px; color: #4B5563;">📄 Printable AI Readiness Diagnostic Report — Save as PDF via browser print</span><button onclick="window.print()" style="background: #1D4ED8; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 13px;">🖨️ Save as PDF</button></div>');
-      printDoc.write('<div class="header-banner"><div>' + logoHtml + '<h1>Steelcase ARC — AI Workplace Readiness Diagnostic</h1><div class="meta"><strong>Client:</strong> ' + companyName + ' &nbsp;|&nbsp; <strong>Contact:</strong> ' + leadNameStr + ' (' + leadRoleStr + ') &nbsp;|&nbsp; <strong>Date:</strong> ' + new Date().toLocaleDateString() + '</div></div><div class="score-badge"><div class="score-num">' + score + '</div><div class="score-lbl">Readiness Score</div></div></div>');
+      printDoc.write('<div class="header-banner"><div>' + logoHtml + '<h1>Steelcase ARC — AI Workplace Readiness Diagnostic</h1><div class="meta"><strong>Client:</strong> ' + companyName + ' &nbsp;|&nbsp; <strong>Contact:</strong> ' + leadNameStr + ' (' + leadRoleStr + ')' + phoneStr + ' &nbsp;|&nbsp; <strong>Date:</strong> ' + dateStr + '</div></div><div class="score-badge"><div class="score-num">' + score + '</div><div class="score-lbl">Readiness Score</div></div></div>');
       printDoc.write('<div class="report-content">' + reportHtml + '</div>');
       printDoc.write('<' + 'script>window.onload = function() { setTimeout(function() { window.print(); }, 500); };<' + '/script>');
       printDoc.write('</body></html>');

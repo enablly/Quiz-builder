@@ -1484,6 +1484,7 @@ export default function App() {
     const companyName = lead.company || 'Organization';
     const leadName = lead.name || 'Executive';
     const leadRole = lead.role || 'Workplace Leader';
+    const phoneStr = lead.phone ? ` &nbsp;|&nbsp; <strong>Phone:</strong> ${lead.phone}` : '';
     
     const showLogoInPdf = config.branding?.logoUrl && config.branding?.showLogoInPdf !== false;
     const logoHtml = showLogoInPdf 
@@ -1501,7 +1502,7 @@ export default function App() {
             <h1 style="margin: 0 0 8px 0; font-size: 24px; color: #1E3A8A; font-weight: 700;">${config.content?.title || 'Steelcase ARC — AI Workplace Readiness Diagnostic'}</h1>
             <div style="font-size: 13px; color: #4B5563;">
               <strong>Client:</strong> ${companyName} &nbsp;|&nbsp; 
-              <strong>Contact:</strong> ${leadName} (${leadRole}) &nbsp;|&nbsp; 
+              <strong>Contact:</strong> ${leadName} (${leadRole})${phoneStr} &nbsp;|&nbsp; 
               <strong>Date:</strong> ${new Date().toLocaleDateString()}
             </div>
           </div>
