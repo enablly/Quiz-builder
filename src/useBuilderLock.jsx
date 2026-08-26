@@ -511,3 +511,66 @@ export function ForceTakeoverModal({ lockHook }) {
     </div>
   );
 }
+
+export function LockNotificationToast({ lockHook }) {
+  const { notification, setNotification, releaseLock } = lockHook;
+
+  if (!notification) return null;
+
+  const isRequest = notification.type === 'access_requested';
+
+  return (
+    <div style={{
+      position: 'fixed',
+      top: '20px',
+      right: '20px',
+      background: 'white',
+      border: isRequest ? '2px solid #3B82F6' : '1px solid #D1D5DB',
+      borderRadius: '8px',
+      padding: '16px',
+      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+      zIndex: 10000,
+      maxWidth: '320px',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '12px'
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+        <p style={{ margin: 0, fontSize: '14px', color: '#1F2937', fontWeight: 500, lineHeight: '1.4' }}>
+          {notification.message}
+        </p>
+        <button 
+          onClick={() => setNotification(null)}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', padding: 0 }}
+          title="Dismiss"
+        >
+          ✕
+        </button>
+      </div>
+      {isRequest && (
+        <button
+          onClick={async () => {
+            await releaseLock();
+            setNotification(null);
+          }}
+          style={{
+            background: '#3B82F6',
+            color: 'white',
+            border: 'none',
+            padding: '8px 12px',
+            borderRadius: '6px',
+            fontSize: '13px',
+            fontWeight: 600,
+            cursor: 'pointer',
+            width: '100%',
+            transition: 'background 0.2s'
+          }}
+          onMouseEnter={(e) => e.target.style.background = '#2563EB'}
+          onMouseLeave={(e) => e.target.style.background = '#3B82F6'}
+        >
+          Approve & Release Lock
+        </button>
+      )}
+    </div>
+  );
+}

@@ -5,7 +5,7 @@ import RichTextEditor from './RichTextEditor';
 import { generateStandaloneHtml, generateReadme, generateLeadPayloadSchema } from './generateStandaloneQuiz';
 import { STEELCASE_TEMPLATES } from './steelcaseTemplates';
 import { sanitizeLogMessage, sanitizeTelemetryModelName } from './utils/sanitizeLogs';
-import { useBuilderLock, LockBottomBar, LockNameModal, ForceTakeoverModal } from './useBuilderLock';
+import { useBuilderLock, LockBottomBar, LockNameModal, ForceTakeoverModal, LockNotificationToast } from './useBuilderLock';
 import { db, doc, onSnapshot, setDoc } from './firebase';
 
 export const STANDARD_GEMINI_MODELS = [
@@ -6604,6 +6604,7 @@ export default function App() {
           <LockBottomBar lockHook={lockHook} />
           <LockNameModal lockHook={lockHook} />
           <ForceTakeoverModal lockHook={lockHook} />
+          <LockNotificationToast lockHook={lockHook} />
         </>
       )}
     </div>
