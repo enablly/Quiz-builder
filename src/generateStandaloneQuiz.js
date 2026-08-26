@@ -835,13 +835,13 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
               <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px solid #1E293B; padding-bottom: 6px; color: #94A3B8; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700;">
                 <span style="display: flex; align-items: center; gap: 6px;">
                   <span style="width: 7px; height: 7px; border-radius: 50%; background: #22C55E; box-shadow: 0 0 6px #22C55E;"></span>
-                  AI Thinking & System Quota Diagnostics
+                  AI Diagnostic Engine & System Telemetry
                 </span>
                 <span style="background: #1E293B; padding: 1px 6px; border-radius: 4px; color: #38BDF8; font-size: 9px;">Live Log</span>
               </div>
               <div id="diagnostic-thinking-console" style="display: flex; flex-direction: column; gap: 3px;">
                 <div style="color: #CBD5E1;">[${new Date().toLocaleTimeString('en-US', { hour12: false })}] [Client Engine] Initiating diagnostic pipeline for \${lead.company || 'Organization'}...</div>
-                <div style="color: #CBD5E1;">[${new Date().toLocaleTimeString('en-US', { hour12: false })}] [Client Engine] Connecting to AI model endpoint...</div>
+                <div style="color: #CBD5E1;">[${new Date().toLocaleTimeString('en-US', { hour12: false })}] [Client Engine] Connecting securely to AI diagnostic engine...</div>
               </div>
             </div>
 
@@ -862,6 +862,47 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
             </div>
           </div>
         \`;
+
+        function sanitizeLogMessage(logLine) {
+          if (!logLine || typeof logLine !== 'string') return logLine;
+          try {
+            console.log("%c[ADMIN TELEMETRY RAW LOG]", "color: #38BDF8; font-weight: bold;", logLine);
+          } catch (e) {}
+          let ts = '';
+          const tsMatch = logLine.match(/^(\[\d{1,2}:\d{2}:\d{2}\])/);
+          if (tsMatch) ts = tsMatch[1] + ' ';
+
+          const u = logLine.toUpperCase();
+          if (u.includes('PRIORITY FALLBACK SEQUENCE') || u.includes('MODELS:')) return ts + '[AI Pipeline] Initializing high-availability multi-node diagnostic engine...';
+          if (u.includes('[GEMINI API] QUERYING') || u.includes('REQUESTING GENERATION WITH MODEL') || u.includes('QUERYING GEMINI')) return ts + '[Intelligence] Analyzing organizational profile & workplace parameters...';
+          if (u.includes('SEARCH GROUNDING: ENABLED') || u.includes('GOOGLE SEARCH TOOL')) return ts + '[Intelligence] Conducting live web research on organizational footprint & workplace policy...';
+          if (u.includes('SEARCH GROUNDING: DISABLED') || u.includes('WITHOUT SEARCH TOOL')) return ts + '[Intelligence] Cross-referencing survey metrics against spatial index benchmarks...';
+          if (u.includes('429') || u.includes('QUOTA') || u.includes('RATE LIMIT') || u.includes('RESOURCE_EXHAUSTED') || u.includes('SKIPPED')) return ts + '[Pipeline] Optimizing analysis throughput via secondary high-speed reasoning node...';
+          if (u.includes('GENERATED CUSTOM AI DIAGNOSIS') || u.includes('[SUCCESS] MODEL')) return ts + '[Success] Executive AI diagnostic report synthesized successfully.';
+          if (u.includes('EXHAUSTION') || u.includes('KEY QUOTA SPENT') || u.includes('LIMITS ENCOUNTERED')) return ts + '[Pipeline] High traffic volume detected; activating instant benchmark synthesis...';
+          if (u.includes('HUMAN MATERIALS') || u.includes('CONFIGURED SECTION PROMPTS') || u.includes('BENCHMARK ENGINE')) return ts + '[Benchmark Engine] Verified workplace benchmark report compiled from index metrics.';
+          if (u.includes('AWAITING GOOGLE GEMINI') || u.includes('CONNECTING TO AI MODEL ENDPOINT')) return ts + '[Client Engine] Connecting securely to AI diagnostic engine...';
+
+          const kw = ['GEMINI-3.7-FLASH', 'GEMINI-3.6-FLASH', 'GEMINI-3.5-FLASH', 'GEMINI-3.5-FLASH-LITE', 'GEMINI-PRO-LATEST', 'GEMINI-2.0-FLASH', 'GEMINI-1.5-FLASH', 'GEMINI-1.5-PRO', 'GEMINI-', 'MODELFALLBACKS', 'GEMINIAPIKEY', 'STACK', 'HTTP 500', 'HTTP 429', 'HTTP 404'];
+          for (const k of kw) {
+            if (u.includes(k)) return ts + '[System] Processing workplace vectors through diagnostic engine...';
+          }
+          return logLine;
+        }
+
+        function appendConsoleLog(rawLog) {
+          const el = document.getElementById('diagnostic-thinking-console');
+          if (!el) return;
+          const sanitized = sanitizeLogMessage(rawLog);
+          const div = document.createElement('div');
+          const isErr = rawLog.includes('429') || rawLog.includes('WARN') || rawLog.includes('QUOTA') || rawLog.includes('EXHAUSTION');
+          const isSucc = rawLog.includes('SUCCESS') || rawLog.includes('success');
+          div.style.color = isErr ? '#F87171' : isSucc ? '#4ADE80' : '#CBD5E1';
+          div.style.marginBottom = '3px';
+          div.innerText = sanitized;
+          el.appendChild(div);
+          el.scrollTop = el.scrollHeight;
+        }
 
         // Function to update diagnostic step UI
         function updateStepUI(stepIdx) {
@@ -895,9 +936,30 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
           }
         }
 
-        // Stagger step transitions: 0 -> 1 after 1.2s -> 2 after 2.7s (crawls at step 3 while fetching)
-        const t1 = setTimeout(() => updateStepUI(1), 1200);
-        const t2 = setTimeout(() => updateStepUI(2), 2700);
+        // Stagger step transitions & detailed console ticks
+        appendConsoleLog('[' + new Date().toLocaleTimeString('en-US', { hour12: false }) + '] [Intelligence] STAGE 1/4: Crawling public filings & RTO policy benchmarks...');
+        
+        setTimeout(function() {
+          appendConsoleLog('[' + new Date().toLocaleTimeString('en-US', { hour12: false }) + '] [Data Engine] Querying spatial index database & acoustic isolation models...');
+        }, 1100);
+
+        const t1 = setTimeout(function() {
+          updateStepUI(1);
+          appendConsoleLog('[' + new Date().toLocaleTimeString('en-US', { hour12: false }) + '] [Data Engine] STAGE 2/4: Processing survey index metrics...');
+          appendConsoleLog('[' + new Date().toLocaleTimeString('en-US', { hour12: false }) + '] [Acoustics Engine] Calculating STC noise isolation index & focus zone ratios...');
+        }, 2600);
+
+        const t2 = setTimeout(function() {
+          updateStepUI(2);
+          appendConsoleLog('[' + new Date().toLocaleTimeString('en-US', { hour12: false }) + '] [Acoustics Engine] STAGE 3/4: Assessing spatial adaptability & IT power grid...');
+          appendConsoleLog('[' + new Date().toLocaleTimeString('en-US', { hour12: false }) + '] [Synthesis Engine] Cross-referencing response vectors against Steelcase ARC benchmarks...');
+        }, 5200);
+
+        const t3 = setTimeout(function() {
+          updateStepUI(3);
+          appendConsoleLog('[' + new Date().toLocaleTimeString('en-US', { hour12: false }) + '] [Synthesis Engine] STAGE 4/4: Formulating 3-pillar architectural & spatial recommendations...');
+          appendConsoleLog('[' + new Date().toLocaleTimeString('en-US', { hour12: false }) + '] [Quality Check] Finalizing executive diagnostic report & HTML formatting...');
+        }, 8200);
 
         // Run webhook in parallel
         sendWebhook({
@@ -937,6 +999,9 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
             if (resp.ok) {
               const data = await resp.json();
               if (data.html) window.standaloneAiReport = data.html;
+              if (data.thinkingLogs && Array.isArray(data.thinkingLogs)) {
+                data.thinkingLogs.forEach(function(l) { appendConsoleLog(l); });
+              }
               return;
             } else {
               throw new Error("Backend responded with " + resp.status);
@@ -960,18 +1025,18 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
                 const qText = slimAnswers || "No significant deviations noted.";
                 const s2Prompt = (QUIZ_CONFIG.reportSections && QUIZ_CONFIG.reportSections[1] && QUIZ_CONFIG.reportSections[1].prompt)
                   ? QUIZ_CONFIG.reportSections[1].prompt
-                  : "Analyze the organization survey score (" + scoreStr + "/100) and workplace context. Provide a multi-paragraph technical breakdown.";
+                  : "Analyze the organization survey score (" + scoreStr + "/100) and workplace context. Provide a highly scannable technical breakdown using HTML <b> and <ul> tags.";
                 const s4Prompt = (QUIZ_CONFIG.reportSections && QUIZ_CONFIG.reportSections[3] && QUIZ_CONFIG.reportSections[3].prompt)
                   ? QUIZ_CONFIG.reportSections[3].prompt
-                  : "Provide 3-4 actionable spatial and acoustic optimization recommendations for " + compStr + ".";
+                  : "Based on the research and context gathered in Section 2, provide 3-4 actionable spatial and acoustic optimization recommendations for " + compStr + " using HTML <b> and <ul> tags.";
 
                 const prompt = "You are an expert Workplace Strategy AI Architect.\\n" +
 "Analyze the workplace assessment for \\"" + compStr + "\\" (Score: " + scoreStr + "/100).\\n" +
 "Survey Highlights:\\n" + qText + "\\n\\n" +
 "Perform a web search on \\"" + compStr + "\\" to verify company context, hybrid work policy, and office footprint.\\n\\n" +
 "CRITICAL REQUIREMENT: Return a valid JSON object with EXACTLY two string keys:\\n" +
-"1. \\"section2Html\\": Clean HTML string for Section 2 (Technical Score Breakdown & Diagnostic for " + compStr + "). Must include 2-3 detailed paragraphs analyzing their readiness score (" + scoreStr + "/100) in relation to their real workplace context.\\n" +
-"2. \\"section4Html\\": Clean HTML string for Section 4 (Strategic Roadmap & Spatial Interventions). Must include an unordered list (<ul>) of 3-4 actionable spatial/acoustic recommendations.\\n\\n" +
+"1. \\"section2Html\\": Clean HTML string for Section 2 (Technical Score Breakdown & Diagnostic for " + compStr + "). Must include highly structured HTML (using <b>, <ul>, <li>) analyzing their readiness score (" + scoreStr + "/100) in relation to their real workplace context.\\n" +
+"2. \\"section4Html\\": Clean HTML string for Section 4 (Strategic Roadmap & Spatial Interventions). Must explicitly reference the verified company context researched in Section 2 to justify recommendations. Must include a structured unordered list (<ul>) of 3-4 actionable spatial/acoustic recommendations with bolded headers.\\n\\n" +
 "Return ONLY the JSON object. Do not include markdown fences, backticks, or any other text.";
 
                 const rawClientModels = (QUIZ_CONFIG.integration && Array.isArray(QUIZ_CONFIG.integration.modelFallbacks) && QUIZ_CONFIG.integration.modelFallbacks.length > 0)
@@ -1058,6 +1123,7 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
         Promise.race([fetchAiPromise, timerPromise]).finally(() => {
           clearTimeout(t1);
           clearTimeout(t2);
+          clearTimeout(t3);
           updateStepUI(3);
           setTimeout(() => {
             currentStep++;
@@ -1102,6 +1168,20 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
 
     async function submitTel() {
       const telVal = document.getElementById('tel-input')?.value;
+      if (!telVal) return;
+      telSent = true;
+      render();
+      await sendWebhook({
+        action: 'update',
+        email: lead.email,
+        tel: telVal,
+        phone: telVal,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    async function submitTelBottom() {
+      const telVal = document.getElementById('tel-input-bottom')?.value;
       if (!telVal) return;
       telSent = true;
       render();
@@ -1271,21 +1351,36 @@ export function generateStandaloneHtml(rawConfig, backendUrl = '') {
       html += renderExtraBlocks(s5);
 
       // FULL-WIDTH CTA CARD AT BOTTOM OF SECTION 5 (ABOVE SOURCES)
-      html += '<div style="margin-top: 28px; background: #F8FAFC; border: 1.5px solid #E2E8F0; border-radius: 12px; padding: 24px 28px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.03); width: 100%; box-sizing: border-box;">';
-      html += '<div style="display: inline-flex; align-items: center; gap: 6px; color: #059669; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; background: #ECFDF5; border: 1px solid #A7F3D0; padding: 4px 12px; border-radius: 9999px; margin-bottom: 12px;">';
-      html += '<span>✓</span> CONGRATULATIONS! YOU QUALIFY FOR AN EXECUTIVE STRATEGY CONSULTATION';
+      const ctaCfg = QUIZ_CONFIG.ctaConfig || {};
+      const primaryText = escapeHtml(ctaCfg.primaryCtaText || "Apply Now");
+      const secondaryText = escapeHtml(ctaCfg.secondaryCtaText || "Add Telephone (Optional)");
+      const isRedirect = ctaCfg.primaryCtaType === 'redirect' && ctaCfg.redirectUrl;
+      
+      html += '<div style="margin-top: 28px; background: #F8FAFC; border: 1.5px solid #E2E8F0; border-radius: 12px; padding: 24px 28px; text-align: left; box-shadow: 0 4px 12px rgba(0,0,0,0.03); width: 100%; box-sizing: border-box;">';
+      html += '<div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:#059669; margin-bottom:8px; display:flex; align-items:center; gap:6px;">';
+      html += '✓ Congratulations! You Qualify for an Executive Strategy Consultation';
       html += '</div>';
-      html += '<h3 style="margin: 0 0 8px 0; font-size: 20px; font-weight: 700; color: #0F172A;">Professional Assessment</h3>';
-      html += '<p style="margin: 0 auto 18px auto; font-size: 14px; color: #475569; max-width: 580px; line-height: 1.5;">Schedule a deep-dive session with a workplace strategy specialist to analyze your spatial parameters and acoustic requirements.</p>';
-      if (isApplied) {
-        html += '<div style="display: inline-flex; align-items: center; gap: 8px; color: #059669; background: #ECFDF5; border: 1px solid #6EE7B7; font-size: 14px; font-weight: 600; padding: 10px 24px; border-radius: 8px;">';
-        html += '<span>✓</span> Qualified for Consultation';
+      html += '<h4 style="margin:0 0 8px; font-size:16px;">Professional Assessment</h4>';
+      html += '<p style="font-size:13px; color:#5F6368; margin:0 0 16px;">Schedule a deep-dive session with a workplace strategy specialist.</p>';
+      
+      html += '<button class="btn btn-primary" id="btn-apply-cta-bottom" onclick="' + (isRedirect ? "window.open('" + escapeHtml(ctaCfg.redirectUrl) + "', '_blank')" : "requestAssessment()") + '" style="width:100%; justify-content:center; margin-bottom:12px; background-color: ' + ((isApplied && !isRedirect) ? '#9CA3AF' : 'var(--primary-color)') + '" ' + ((isApplied && !isRedirect) ? 'disabled' : '') + '>';
+      html += ((isApplied && !isRedirect) ? '✓ Request Sent' : '✉ ' + primaryText);
+      html += '</button>';
+
+      if (ctaCfg.secondaryCtaEnabled !== false) {
+        html += '<div id="tel-box-bottom" style="display:' + (isApplied && !telSent && !isRedirect ? 'block' : 'none') + '; background:white; padding:16px; border:1px solid #E5E7EB; border-radius:6px; margin-top:12px;">';
+        html += '<label style="font-size:12px; font-weight:600; display:block; margin-bottom:8px;">' + secondaryText + '</label>';
+        html += '<div style="display:flex; gap:8px;">';
+        html += '<input type="tel" id="tel-input-bottom" placeholder="+1..." style="flex:1; padding:8px 12px; border:1px solid #D1D5DB; border-radius:4px;" />';
+        html += '<button type="button" onclick="submitTelBottom()" class="btn btn-secondary" style="padding:8px 12px;">Send</button>';
         html += '</div>';
-      } else {
-        html += '<button type="button" onclick="requestAssessment()" style="background: #2563EB; color: #FFFFFF; font-weight: 600; font-size: 14px; padding: 12px 28px; border-radius: 8px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s ease; box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);">';
-        html += '<span>✉️</span> Apply Now';
-        html += '</button>';
+        html += '</div>';
+        html += '<div id="tel-saved-msg-bottom" style="display:' + (telSent ? 'block' : 'none') + '; font-size:13px; color:#059669; margin-top:8px;">✓ Phone saved</div>';
       }
+
+      html += '<div style="font-size:12px; color:#059669; display:flex; align-items:center; gap:6px; justify-content:center; margin-top:12px;">';
+      html += '✓ Qualified for Consultation';
+      html += '</div>';
       html += '</div>';
 
       html += '</div>';

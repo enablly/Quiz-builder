@@ -1,0 +1,59 @@
+{
+  "entities": {
+    "builder_locks": {
+      "title": "Builder Locks",
+      "description": "Real-time session locks for quiz builder collaboration",
+      "type": "object",
+      "properties": {
+        "lockedBy": {
+          "type": "string"
+        },
+        "clientId": {
+          "type": "string"
+        },
+        "lastActive": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastActiveEpoch": {
+          "type": "number"
+        },
+        "transferRequestedBy": {
+          "type": "string"
+        },
+        "transferRequestTime": {
+          "type": "number"
+        }
+      }
+    },
+    "quiz_settings": {
+      "title": "Quiz Settings",
+      "description": "Persisted global settings, branding, AI persona, and model fallback priority sequence",
+      "type": "object",
+      "properties": {
+        "integration": {
+          "type": "object"
+        },
+        "aiPersona": {
+          "type": "object"
+        },
+        "ctaConfig": {
+          "type": "object"
+        },
+        "branding": {
+          "type": "object"
+        },
+        "dangerZoneConfig": {
+          "type": "object"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedBy": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

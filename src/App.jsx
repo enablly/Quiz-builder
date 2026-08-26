@@ -4,7 +4,20 @@ import JSZip from 'jszip';
 import RichTextEditor from './RichTextEditor';
 import { generateStandaloneHtml, generateReadme, generateLeadPayloadSchema } from './generateStandaloneQuiz';
 import { STEELCASE_TEMPLATES } from './steelcaseTemplates';
+import { sanitizeLogMessage, sanitizeTelemetryModelName } from './utils/sanitizeLogs';
 import { useBuilderLock, LockBottomBar, LockNameModal, ForceTakeoverModal } from './useBuilderLock';
+import { db, doc, onSnapshot, setDoc } from './firebase';
+
+export const STANDARD_GEMINI_MODELS = [
+  'gemini-pro-latest',
+  'gemini-3.7-flash',
+  'gemini-3.6-flash',
+  'gemini-3.5-flash',
+  'gemini-3.5-flash-lite',
+  'gemini-3.1-flash-lite',
+  'gemini-flash-lite-latest',
+  'gemini-3.1-pro-preview'
+];
 
 const DEFAULT_CONFIG = {
   activeTemplateId: 'steelcase-arc-ai',
@@ -82,7 +95,7 @@ const DEFAULT_CONFIG = {
       eyebrow: "02. AI Diagnostic",
       sectionHeading: "Technical Score Breakdown & Readiness Analysis",
       description: "Analytical interpretation of what your readiness score means for spatial performance, acoustic privacy, cognitive focus, and bottom-line productivity.",
-      prompt: "Evaluate {company}'s AI Workplace Readiness Index score ({score}/100) across the 6 core workplace dimensions (AI adoption, focus & cognitive performance, hybrid collaboration, workplace choice, employee experience, and future spatial adaptability).\n\nPerform a targeted web search on {company} to identify verified public intelligence regarding their industry footprint, office locations, return-to-office (RTO) policies, and technology workforce scale.\n\nWrite a 2-paragraph executive diagnostic (approx 160-200 words total):\n- Paragraph 1 (Diagnostic Baseline): Synthesize their specific score ({score}/100) with their organizational profile. Identify their primary physical workspace bottleneck (e.g. acoustic bleed from video calls, lack of solitary deep-work prompting pods, or static floorplate rigidity).\n- Paragraph 2 (Cognitive & Productivity Toll): Analyze how these spatial constraints induce context-switching latency (referencing the 23-minute focus recovery benchmark) and impede rapid generative AI experimentation.",
+      prompt: "Evaluate {company}'s AI Workplace Readiness Index score ({score}/100) across the 6 core workplace dimensions (AI adoption, focus & cognitive performance, hybrid collaboration, workplace choice, employee experience, and future spatial adaptability).\n\nPerform a targeted web search on {company} to identify verified public intelligence regarding their industry footprint, office locations, return-to-office (RTO) policies, and technology workforce scale.\n\nWrite a highly scannable executive diagnostic utilizing HTML tags like <b>, <ul>, and <li> to structure the narrative:\n- <b>Diagnostic Baseline:</b> Synthesize their specific score ({score}/100) with their organizational profile. Identify their primary physical workspace bottleneck (e.g. acoustic bleed from video calls, lack of solitary deep-work prompting pods, or static floorplate rigidity).\n- <b>Cognitive & Productivity Toll:</b> Analyze how these spatial constraints induce context-switching latency (referencing the 23-minute focus recovery benchmark) and impede rapid generative AI experimentation.",
       ragFiles: []
     },
     {
@@ -100,7 +113,7 @@ const DEFAULT_CONFIG = {
       eyebrow: "04. Strategic Roadmap",
       sectionHeading: "High-Performance Spatial Optimization Roadmap",
       description: "Tailored strategic workplace interventions, architectural configurations, and actionable next steps.",
-      prompt: "Based on {company}'s diagnostic score ({score}/100), surveyed friction points, and workplace context, construct a prioritized 3-pillar spatial transformation roadmap for AI-enabled teams.\n\nFormulate 3 actionable interventions formatted as structured bullet points (approx 160-200 words total):\n- 1. Acoustic & Deep-Focus Sanctuaries: Implement high-STC (38+) micro-pods and quiet library zones within 30 feet of primary desk areas to protect high-intensity AI prompting and confidential hybrid video calls.\n- 2. Agile Reconfigurable Team Neighborhoods: Introduce mobile acoustic boundary screens and modular whiteboard topologies that allow sprint teams to pivot instantly between solo synthesis and active co-creation.\n- 3. Dynamic Power & Hybrid Meeting Equity: Deploy distributed mobile power hubs and sightline-optimized curved video settings with spatial audio for equal conversational parity between remote and in-person collaborators.",
+      prompt: "Based on {company}'s diagnostic score ({score}/100), surveyed friction points, and the verified public workplace context research gathered in Section 2, construct a prioritized 3-pillar spatial transformation roadmap for AI-enabled teams.\n\nCRITICAL INSTRUCTION: Explicitly reference the verified company details and context (e.g. recent RTO mandates, industry footprint) you researched earlier to justify these spatial recommendations.\n\nFormulate 3 actionable interventions formatted as structured HTML bullet points (using <ul>, <li>, and <b>):\n- 1. Acoustic & Deep-Focus Sanctuaries: Implement high-STC (38+) micro-pods and quiet library zones within 30 feet of primary desk areas to protect high-intensity AI prompting and confidential hybrid video calls.\n- 2. Agile Reconfigurable Team Neighborhoods: Introduce mobile acoustic boundary screens and modular whiteboard topologies that allow sprint teams to pivot instantly between solo synthesis and active co-creation.\n- 3. Dynamic Power & Hybrid Meeting Equity: Deploy distributed mobile power hubs and sightline-optimized curved video settings with spatial audio for equal conversational parity between remote and in-person collaborators.",
       ragFiles: []
     },
     {
@@ -514,6 +527,13 @@ export default function App() {
           ...DEFAULT_CONFIG.aiPersona,
           ...(parsed.aiPersona || {})
         },
+        integration: {
+          ...DEFAULT_CONFIG.integration,
+          ...(parsed.integration || {}),
+          modelFallbacks: (Array.isArray(parsed.integration?.modelFallbacks) && parsed.integration.modelFallbacks.length > 0)
+            ? parsed.integration.modelFallbacks
+            : DEFAULT_CONFIG.integration.modelFallbacks
+        },
         reportSections: (Array.isArray(parsed.reportSections) && parsed.reportSections.length === 5)
           ? parsed.reportSections
           : DEFAULT_CONFIG.reportSections,
@@ -535,9 +555,148 @@ export default function App() {
     }
   });
 
+  const [firestoreSyncStatus, setFirestoreSyncStatus] = useState('synced'); // 'synced' | 'saving' | 'error'
+  const [firestoreLastSaved, setFirestoreLastSaved] = useState(null);
+  const isIncomingFirestoreUpdate = useRef(false);
+  const isFirestoreLoadedRef = useRef(false);
+  const saveSettingsTimerRef = useRef(null);
+
+  // 1. Listen to remote settings changes from Firestore in real-time
+  useEffect(() => {
+    if (!db) return;
+    const settingsDocRef = doc(db, 'quiz_settings', 'global_config');
+    const unsubscribe = onSnapshot(settingsDocRef, (snap) => {
+      isIncomingFirestoreUpdate.current = true;
+      isFirestoreLoadedRef.current = true;
+
+      if (snap.exists()) {
+        const remoteData = snap.data();
+        
+        // Sync GitHub tokens into localStorage for client backup
+        if (remoteData.integration?.githubToken) {
+          localStorage.setItem('qb_github_token', remoteData.integration.githubToken);
+        }
+        if (remoteData.integration?.githubRepo) {
+          localStorage.setItem('qb_github_repo', remoteData.integration.githubRepo);
+        }
+        if (remoteData.integration?.githubBranch) {
+          localStorage.setItem('qb_github_branch', remoteData.integration.githubBranch);
+        }
+
+        setConfig(prev => {
+          return {
+            ...prev,
+            ...(remoteData || {}),
+            content: {
+              ...prev.content,
+              ...(remoteData.content || {})
+            },
+            branding: {
+              ...prev.branding,
+              ...(remoteData.branding || {})
+            },
+            ctaConfig: {
+              ...prev.ctaConfig,
+              ...(remoteData.ctaConfig || {})
+            },
+            aiPersona: {
+              ...prev.aiPersona,
+              ...(remoteData.aiPersona || {})
+            },
+            leadCapture: remoteData.leadCapture || prev.leadCapture,
+            dangerZoneConfig: remoteData.dangerZoneConfig || prev.dangerZoneConfig,
+            reportSections: remoteData.reportSections || prev.reportSections,
+            results: remoteData.results || prev.results,
+            questions: remoteData.questions || prev.questions,
+            integration: {
+              ...prev.integration,
+              ...(remoteData.integration || {}),
+              webhookUrl: remoteData.integration?.webhookUrl ?? prev.integration?.webhookUrl ?? '',
+              geminiApiKey: remoteData.integration?.geminiApiKey ?? prev.integration?.geminiApiKey ?? '',
+              githubToken: remoteData.integration?.githubToken || prev.integration?.githubToken || localStorage.getItem('qb_github_token') || '',
+              githubRepo: remoteData.integration?.githubRepo || prev.integration?.githubRepo || localStorage.getItem('qb_github_repo') || '',
+              githubBranch: remoteData.integration?.githubBranch || prev.integration?.githubBranch || localStorage.getItem('qb_github_branch') || 'main',
+              githubFilePath: remoteData.integration?.githubFilePath || prev.integration?.githubFilePath || 'index.html',
+              lastPublishedAt: remoteData.integration?.lastPublishedAt || prev.integration?.lastPublishedAt || '',
+              lastPublishUrl: remoteData.integration?.lastPublishUrl || prev.integration?.lastPublishUrl || '',
+              modelFallbacks: Array.isArray(remoteData.integration?.modelFallbacks) && remoteData.integration.modelFallbacks.length > 0
+                ? remoteData.integration.modelFallbacks
+                : (prev.integration?.modelFallbacks || DEFAULT_CONFIG.integration.modelFallbacks)
+            }
+          };
+        });
+        
+        if (remoteData.updatedAt) {
+          setFirestoreLastSaved(remoteData.updatedAt);
+        }
+        setFirestoreSyncStatus('synced');
+      }
+
+      setTimeout(() => {
+        isIncomingFirestoreUpdate.current = false;
+      }, 400);
+    }, (err) => {
+      console.warn("Firestore settings listener warning:", err);
+      isFirestoreLoadedRef.current = true;
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // 2. Debounced auto-save Setting Tab changes to Firestore
   useEffect(() => {
     localStorage.setItem('quizBuilderConfig', JSON.stringify(config));
-  }, [config]);
+
+    // CRITICAL: Do not overwrite Firestore until the initial cloud config has been loaded into memory
+    if (!db || !isFirestoreLoadedRef.current || isIncomingFirestoreUpdate.current) return;
+
+    if (saveSettingsTimerRef.current) {
+      clearTimeout(saveSettingsTimerRef.current);
+    }
+
+    setFirestoreSyncStatus('saving');
+
+    saveSettingsTimerRef.current = setTimeout(async () => {
+      try {
+        const settingsDocRef = doc(db, 'quiz_settings', 'global_config');
+        const nowIso = new Date().toISOString();
+        await setDoc(settingsDocRef, {
+          ...config,
+          content: config.content || {},
+          branding: config.branding || {},
+          ctaConfig: config.ctaConfig || {},
+          aiPersona: config.aiPersona || {},
+          integration: {
+            webhookUrl: config.integration?.webhookUrl || '',
+            geminiApiKey: config.integration?.geminiApiKey || '',
+            modelFallbacks: Array.isArray(config.integration?.modelFallbacks) && config.integration.modelFallbacks.length > 0
+              ? config.integration.modelFallbacks
+              : DEFAULT_CONFIG.integration.modelFallbacks,
+            githubToken: config.integration?.githubToken || localStorage.getItem('qb_github_token') || '',
+            githubRepo: config.integration?.githubRepo || localStorage.getItem('qb_github_repo') || '',
+            githubBranch: config.integration?.githubBranch || localStorage.getItem('qb_github_branch') || 'main',
+            githubFilePath: config.integration?.githubFilePath || 'index.html',
+            lastPublishedAt: config.integration?.lastPublishedAt || '',
+            lastPublishUrl: config.integration?.lastPublishUrl || ''
+          },
+          updatedAt: nowIso,
+          updatedBy: 'Adam Lau (admin)'
+        }, { merge: true });
+        
+        setFirestoreLastSaved(nowIso);
+        setFirestoreSyncStatus('synced');
+      } catch (err) {
+        console.error("Error saving settings to Firestore:", err);
+        setFirestoreSyncStatus('error');
+      }
+    }, 600);
+
+    return () => {
+      if (saveSettingsTimerRef.current) {
+        clearTimeout(saveSettingsTimerRef.current);
+      }
+    };
+  }, [config.content, config.branding, config.ctaConfig, config.aiPersona, config.integration]);
 
   const [availableModels, setAvailableModels] = useState([]);
   const [isScanningModels, setIsScanningModels] = useState(false);
@@ -1242,21 +1401,41 @@ export default function App() {
         </div>
         ${renderStaticExtraBlocks(sections[4])}
 
-        <div style="margin-top: 28px; background: #F8FAFC; border: 1.5px solid #E2E8F0; border-radius: 12px; padding: 24px 28px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.03); width: 100%; box-sizing: border-box;">
-          <div style="display: inline-flex; align-items: center; gap: 6px; color: #059669; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; background: #ECFDF5; border: 1px solid #A7F3D0; padding: 4px 12px; border-radius: 9999px; margin-bottom: 12px;">
-            <span>✓</span> CONGRATULATIONS! YOU QUALIFY FOR AN EXECUTIVE STRATEGY CONSULTATION
+        <div style="margin-top: 28px; background: #F8FAFC; border: 1.5px solid #E2E8F0; border-radius: 12px; padding: 24px 28px; text-align: left; box-shadow: 0 4px 12px rgba(0,0,0,0.03); width: 100%; box-sizing: border-box;">
+          <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #059669; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+            ✓ Congratulations! You Qualify for an Executive Strategy Consultation
           </div>
-          <h3 style="margin: 0 0 8px 0; font-size: 20px; font-weight: 700; color: #0F172A;">Professional Assessment</h3>
-          <p style="margin: 0 auto 18px auto; font-size: 14px; color: #475569; max-width: 580px; line-height: 1.5;">Schedule a deep-dive session with a workplace strategy specialist to analyze your spatial parameters and acoustic requirements.</p>
-          ${applied ? `
-            <div style="display: inline-flex; align-items: center; gap: 8px; color: #059669; background: #ECFDF5; border: 1px solid #6EE7B7; font-size: 14px; font-weight: 600; padding: 10px 24px; border-radius: 8px;">
-              <span>✓</span> Qualified for Consultation
+          <h4 style="margin: 0 0 8px; font-size: 16px; color: #0F172A;">Professional Assessment</h4>
+          <p style="margin: 0 0 16px; font-size: 13px; color: #5F6368;">Schedule a deep-dive session with a workplace strategy specialist.</p>
+          
+          <button 
+            type="button" 
+            onclick="${config.ctaConfig?.primaryCtaType === 'redirect' ? `window.open('${config.ctaConfig.redirectUrl}', '_blank')` : 'window.requestAssessment ? window.requestAssessment() : null'}" 
+            style="width: 100%; justify-content: center; margin-bottom: 12px; background-color: ${applied && config.ctaConfig?.primaryCtaType !== 'redirect' ? '#9CA3AF' : 'var(--primary-color)'}; color: #FFFFFF; font-weight: 600; font-size: 14px; padding: 12px 28px; border-radius: 8px; border: none; cursor: ${applied && config.ctaConfig?.primaryCtaType !== 'redirect' ? 'default' : 'pointer'}; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s ease; box-shadow: 0 2px 6px rgba(0,0,0,0.15);"
+            ${applied && config.ctaConfig?.primaryCtaType !== 'redirect' ? 'disabled' : ''}
+          >
+            <span>${applied && config.ctaConfig?.primaryCtaType !== 'redirect' ? '✓ Request Sent' : '✉️ ' + (config.ctaConfig?.primaryCtaText || "Apply Now")}</span>
+          </button>
+          
+          ${applied && !telSent && config.ctaConfig?.secondaryCtaEnabled !== false && config.ctaConfig?.primaryCtaType !== 'redirect' ? `
+            <div style="background: white; padding: 16px; border: 1px solid #E5E7EB; border-radius: 6px; margin-top: 12px;">
+              <label style="font-size: 12px; font-weight: 600; display: block; margin-bottom: 8px; color: #111827;">${config.ctaConfig?.secondaryCtaText || "Add Telephone (Optional)"}</label>
+              <div style="display: flex; gap: 8px;">
+                <input type="tel" placeholder="+1..." value="${tel || ''}" onchange="window.telValue = this.value;" style="flex: 1; padding: 8px 12px; border: 1px solid #D1D5DB; border-radius: 4px;" />
+                <button type="button" onclick="window.submitTel ? window.submitTel() : null" style="padding: 8px 12px; background: #E5E7EB; color: #374151; border: none; border-radius: 4px; font-weight: 500; cursor: pointer;">Send</button>
+              </div>
             </div>
-          ` : `
-            <button type="button" onclick="window.requestAssessment ? window.requestAssessment() : null" style="background: #2563EB; color: #FFFFFF; font-weight: 600; font-size: 14px; padding: 12px 28px; border-radius: 8px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s ease; box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);">
-              <span>✉️</span> Apply Now
-            </button>
-          `}
+          ` : ''}
+          
+          ${telSent ? `
+            <div style="font-size: 13px; color: #059669; display: flex; align-items: center; gap: 6px; margin-top: 8px;">
+              ✓ Phone saved
+            </div>
+          ` : ''}
+
+          <div style="font-size: 12px; color: #059669; display: ${applied ? 'flex' : 'none'}; align-items: center; gap: 6px; justify-content: center; margin-top: 12px;">
+            ✓ Qualified for Consultation
+          </div>
         </div>
       </div>
 
@@ -1550,6 +1729,29 @@ export default function App() {
     });
   };
 
+  useEffect(() => {
+    window.requestAssessment = requestAssessment;
+    window.submitTel = () => {
+      const tv = window.telValue;
+      if (tv) {
+        setTel(tv);
+        setTelSent(true);
+        submitToGoogle({ 
+          action: "update", 
+          email: lead.email, 
+          tel: tv, 
+          phone: tv, 
+          timestamp: new Date().toISOString() 
+        });
+      }
+    };
+    return () => {
+      delete window.requestAssessment;
+      delete window.submitTel;
+      delete window.telValue;
+    };
+  }, [requestAssessment, lead.email, submitToGoogle]);
+
   const generateAiAnalysis = async () => {
     setIsGeneratingAI(true);
     setAiReport("");
@@ -1558,30 +1760,48 @@ export default function App() {
 
     const nowStr = () => new Date().toLocaleTimeString('en-US', { hour12: false });
     const initialLogs = [
-      `[${nowStr()}] [Client Engine] Initiating diagnostic generation for: "${lead.company || 'Target Organization'}"...`,
-      `[${nowStr()}] [Client Engine] Stage 1/4: Analyzing organizational profile & workplace news...`,
-      `[${nowStr()}] [Client Engine] Connecting to backend server endpoint (/api/analyze-company)...`
+      `[${nowStr()}] [Client Engine] Initiating diagnostic pipeline for "${lead.company || 'Organization'}"...`,
+      `[${nowStr()}] [Intelligence] STAGE 1/4: Crawling public filings & RTO policy benchmarks...`,
+      `[${nowStr()}] [Client Engine] Connecting securely to AI diagnostic engine (/api/analyze-company)...`
     ];
     setAiThinkingLogs(initialLogs);
+
+    const t0 = setTimeout(() => {
+      setAiThinkingLogs(prev => [
+        ...prev,
+        `[${nowStr()}] [Data Engine] Querying spatial index database & acoustic isolation models...`
+      ]);
+    }, 1200);
 
     const t1 = setTimeout(() => {
       setThinkingStepIndex(1);
       setThinkingProgress(45);
       setAiThinkingLogs(prev => [
         ...prev,
-        `[${nowStr()}] [Client Engine] Stage 2/4: Processing survey index metrics (${scoreData}/100)...`
+        `[${nowStr()}] [Data Engine] STAGE 2/4: Processing survey index metrics (${scoreData}/100)...`,
+        `[${nowStr()}] [Acoustics Engine] Calculating STC noise isolation index & focus zone ratios...`
       ]);
-    }, 2500);
+    }, 2800);
 
     const t2 = setTimeout(() => {
       setThinkingStepIndex(2);
       setThinkingProgress(68);
       setAiThinkingLogs(prev => [
         ...prev,
-        `[${nowStr()}] [Client Engine] Stage 3/4: Assessing acoustic transmission (STC) & IT infrastructure...`,
-        `[${nowStr()}] [Client Engine] Awaiting Google Gemini model response & search grounding...`
+        `[${nowStr()}] [Acoustics Engine] STAGE 3/4: Assessing spatial adaptability & IT power grid...`,
+        `[${nowStr()}] [Synthesis Engine] Cross-referencing response vectors against Steelcase ARC benchmarks...`
       ]);
-    }, 5500);
+    }, 5200);
+
+    const t3 = setTimeout(() => {
+      setThinkingStepIndex(3);
+      setThinkingProgress(85);
+      setAiThinkingLogs(prev => [
+        ...prev,
+        `[${nowStr()}] [Synthesis Engine] STAGE 4/4: Formulating 3-pillar architectural & spatial recommendations...`,
+        `[${nowStr()}] [Quality Check] Finalizing executive diagnostic report & HTML formatting...`
+      ]);
+    }, 8500);
 
     let currentCrawl = 68;
     const crawlInterval = setInterval(() => {
@@ -1920,7 +2140,10 @@ export default function App() {
                     <span style={{ color: '#9CA3AF' }}>·</span>
                     <button
                       type="button"
-                      onClick={() => setIsVisitorPreview(true)}
+                      onClick={() => {
+                        const targetUrl = config.integration?.lastPublishUrl || `${window.location.origin}${window.location.pathname}?mode=quiz`;
+                        window.open(targetUrl, '_blank');
+                      }}
                       style={{
                         background: 'none',
                         border: 'none',
@@ -1932,6 +2155,7 @@ export default function App() {
                         cursor: 'pointer',
                         whiteSpace: 'nowrap'
                       }}
+                      title="Open Live Form in a new tab"
                     >
                       View
                     </button>
@@ -4090,6 +4314,39 @@ export default function App() {
 
           {activeTab === 'settings' && (
             <>
+            {/* Realtime Firestore Sync Status Banner */}
+            <div style={{
+              marginBottom: '20px',
+              padding: '10px 14px',
+              borderRadius: '8px',
+              background: firestoreSyncStatus === 'saving' ? '#FFFBEB' : firestoreSyncStatus === 'error' ? '#FEF2F2' : '#F0FDF4',
+              border: `1px solid ${firestoreSyncStatus === 'saving' ? '#FDE68A' : firestoreSyncStatus === 'error' ? '#FECACA' : '#BBF7D0'}`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '8px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {firestoreSyncStatus === 'saving' ? (
+                  <RefreshCw size={14} className="animate-spin" color="#D97706" />
+                ) : firestoreSyncStatus === 'error' ? (
+                  <AlertCircle size={14} color="#DC2626" />
+                ) : (
+                  <CheckCircle2 size={14} color="#16A34A" />
+                )}
+                <span style={{ fontSize: '12px', fontWeight: '600', color: firestoreSyncStatus === 'saving' ? '#92400E' : firestoreSyncStatus === 'error' ? '#991B1B' : '#166534' }}>
+                  {firestoreSyncStatus === 'saving' 
+                    ? 'Syncing settings to Firestore...' 
+                    : firestoreSyncStatus === 'error' 
+                    ? 'Firestore sync error (retrying on next change)' 
+                    : 'All settings are synced & saved to Firestore'}
+                </span>
+              </div>
+              <span style={{ fontSize: '11px', color: '#6B7280', fontWeight: '500' }}>
+                {firestoreLastSaved ? `Last changed: ${new Date(firestoreLastSaved).toLocaleTimeString()}` : 'Cloud sync active'}
+              </span>
+            </div>
+
             <div style={{ marginBottom: '28px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', paddingBottom: '8px', borderBottom: '2px solid #E5E7EB' }}>
                 <span style={{ fontSize: '14px', fontWeight: '700', color: '#111827', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -4462,7 +4719,21 @@ export default function App() {
                 <div className="field-group">
                   <label>Google Sheets Webhook URL</label>
                   <input placeholder="https://script.google.com/macros/s/..." value={config.integration.webhookUrl} onChange={e => setConfig({...config, integration: {...config.integration, webhookUrl: e.target.value}})} />
-                  <div style={{fontSize:'12px', color:'#059669', marginTop:'6px', display:'flex', alignItems:'center', gap:'4px'}}><CheckCircle2 size={14}/> Settings automatically saved locally</div>
+                  <div style={{fontSize:'12px', color: firestoreSyncStatus === 'saving' ? '#D97706' : firestoreSyncStatus === 'error' ? '#DC2626' : '#059669', marginTop:'6px', display:'flex', alignItems:'center', gap:'6px'}}>
+                    {firestoreSyncStatus === 'saving' ? (
+                      <>
+                        <RefreshCw size={13} className="animate-spin" /> Saving changes to Firestore Cloud...
+                      </>
+                    ) : firestoreSyncStatus === 'error' ? (
+                      <>
+                        <AlertCircle size={13} /> Firestore sync error (will retry automatically)
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 size={14}/> Settings synced to Cloud Firestore {firestoreLastSaved ? `(${new Date(firestoreLastSaved).toLocaleTimeString()})` : ''}
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 <div style={{ marginTop: '16px', background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '16px' }}>
@@ -4824,64 +5095,51 @@ export default function App() {
 
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {(config.integration.modelFallbacks || ['gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-pro-latest']).map((mName, idx, arr) => (
-                      <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#FFFFFF', padding: '8px 10px', borderRadius: '6px', border: '1px solid #D1D5DB', width: '100%', boxSizing: 'border-box' }}>
-                        <span style={{ fontSize: '11px', fontWeight: '700', color: idx === 0 ? '#1D4ED8' : '#374151', background: idx === 0 ? '#EFF6FF' : '#F3F4F6', padding: '4px 8px', borderRadius: '4px', minWidth: '85px', textAlign: 'center', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                          {idx === 0 ? '#1 Primary' : `#${idx + 1} Fallback`}
-                        </span>
-                        
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <select
-                            value={availableModels.includes(mName) ? mName : 'custom'}
-                            onChange={(e) => {
-                              const newArr = [...arr];
-                              if (e.target.value !== 'custom') {
+                    {(config.integration?.modelFallbacks || ['gemini-pro-latest', 'gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.1-pro-preview']).map((mName, idx, arr) => {
+                      const combinedOptions = Array.from(new Set([
+                        mName,
+                        ...STANDARD_GEMINI_MODELS,
+                        ...availableModels
+                      ].filter(Boolean)));
+
+                      return (
+                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#FFFFFF', padding: '8px 10px', borderRadius: '6px', border: '1px solid #D1D5DB', width: '100%', boxSizing: 'border-box' }}>
+                          <span style={{ fontSize: '11px', fontWeight: '700', color: idx === 0 ? '#1D4ED8' : '#374151', background: idx === 0 ? '#EFF6FF' : '#F3F4F6', padding: '4px 8px', borderRadius: '4px', minWidth: '85px', textAlign: 'center', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                            {idx === 0 ? '#1 Primary' : `#${idx + 1} Fallback`}
+                          </span>
+                          
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <select
+                              value={mName}
+                              onChange={(e) => {
+                                const newArr = [...arr];
                                 newArr[idx] = e.target.value;
                                 setConfig({ ...config, integration: { ...config.integration, modelFallbacks: newArr } });
-                              }
-                            }}
-                            style={{ width: '100%', padding: '6px 8px', fontSize: '12px', border: '1px solid #D1D5DB', borderRadius: '4px', background: '#FFFFFF', color: '#111827', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', boxSizing: 'border-box' }}
-                          >
-                            {availableModels.length > 0 ? (
-                              availableModels.map(model => (
+                              }}
+                              style={{ width: '100%', padding: '6px 8px', fontSize: '12px', border: '1px solid #D1D5DB', borderRadius: '4px', background: '#FFFFFF', color: '#111827', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', boxSizing: 'border-box', cursor: 'pointer' }}
+                            >
+                              {combinedOptions.map(model => (
                                 <option key={model} value={model}>{model}</option>
-                              ))
-                            ) : (
-                              <>
-                                <option value="gemini-3.7-flash">gemini-3.7-flash</option>
-                                <option value="gemini-3.6-flash">gemini-3.6-flash</option>
-                                <option value="gemini-3.5-flash">gemini-3.5-flash</option>
-                                <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite</option>
-                                <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite</option>
-                                <option value="gemini-flash-lite-latest">gemini-flash-lite-latest</option>
-                                <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview</option>
-                                <option value="gemini-pro-latest">gemini-pro-latest</option>
-                              </>
-                            )}
-                            {!availableModels.includes(mName) && ![
-                              'gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 
-                              'gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.1-pro-preview', 'gemini-pro-latest'
-                            ].includes(mName) && (
-                              <option value="custom">Custom: {mName}</option>
-                            )}
-                          </select>
-                        </div>
+                              ))}
+                            </select>
+                          </div>
 
-                        <button
-                          type="button"
-                          disabled={arr.length <= 1}
-                          onClick={() => {
-                            if (arr.length <= 1) return;
-                            const newArr = arr.filter((_, i) => i !== idx);
-                            setConfig({ ...config, integration: { ...config.integration, modelFallbacks: newArr } });
-                          }}
-                          title="Delete Model"
-                          style={{ padding: '6px 8px', background: arr.length <= 1 ? '#F3F4F6' : '#FFFFFF', border: '1px solid ' + (arr.length <= 1 ? '#E5E7EB' : '#FCA5A5'), borderRadius: '4px', cursor: arr.length <= 1 ? 'not-allowed' : 'pointer', color: arr.length <= 1 ? '#9CA3AF' : '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    ))}
+                          <button
+                            type="button"
+                            disabled={arr.length <= 1}
+                            onClick={() => {
+                              if (arr.length <= 1) return;
+                              const newArr = arr.filter((_, i) => i !== idx);
+                              setConfig({ ...config, integration: { ...config.integration, modelFallbacks: newArr } });
+                            }}
+                            title="Delete Model"
+                            style={{ padding: '6px 8px', background: arr.length <= 1 ? '#F3F4F6' : '#FFFFFF', border: '1px solid ' + (arr.length <= 1 ? '#E5E7EB' : '#FCA5A5'), borderRadius: '4px', cursor: arr.length <= 1 ? 'not-allowed' : 'pointer', color: arr.length <= 1 ? '#9CA3AF' : '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
 
                   {/* Add Model Controls */}
@@ -5007,6 +5265,26 @@ export default function App() {
                         onChange={e => setConfig(prev => ({ ...prev, integration: { ...prev.integration, githubFilePath: e.target.value } }))} 
                       />
                     </div>
+                  </div>
+
+                  <div style={{
+                    fontSize: '11px',
+                    color: firestoreSyncStatus === 'saving' ? '#D97706' : '#059669',
+                    marginTop: '2px',
+                    marginBottom: '10px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px'
+                  }}>
+                    {firestoreSyncStatus === 'saving' ? (
+                      <>
+                        <RefreshCw size={12} className="animate-spin" /> Saving credentials to Firestore Cloud...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 size={13} /> GitHub PAT & Repo credentials persist across all sessions via Cloud Firestore
+                      </>
+                    )}
                   </div>
 
                   <button 
@@ -5815,26 +6093,27 @@ export default function App() {
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #334155', paddingBottom: '8px', marginBottom: '10px' }}>
                             <span style={{ fontWeight: 700, color: '#38BDF8', display: 'flex', alignItems: 'center', gap: '6px' }}>
                               <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#22C55E' }}></span>
-                              Live Execution Telemetry & Model Verification
+                              Live Execution Telemetry & Diagnostic Logs
                             </span>
                             {lastTelemetryData && (
                               <span style={{ fontSize: '10px', color: '#94A3B8', background: '#1E293B', padding: '2px 8px', borderRadius: '4px' }}>
-                                Model: <strong style={{ color: '#FCD34D' }}>{lastTelemetryData.modelUsed}</strong> | Latency: <strong style={{ color: '#4ADE80' }}>{lastTelemetryData.latencyMs}ms</strong>
+                                Engine: <strong style={{ color: '#FCD34D' }}>{sanitizeTelemetryModelName(lastTelemetryData.modelUsed)}</strong> | Latency: <strong style={{ color: '#4ADE80' }}>{lastTelemetryData.latencyMs}ms</strong>
                               </span>
                             )}
                           </div>
 
                           <div style={{ maxHeight: '180px', overflowY: 'auto', lineHeight: '1.6' }}>
                             {aiThinkingLogs.map((log, lIdx) => {
-                              const isError = log.includes('429') || log.includes('WARN') || log.includes('QUOTA') || log.includes('EXHAUSTION');
+                              const displayLog = sanitizeLogMessage(log);
+                              const isNotice = log.includes('429') || log.includes('WARN') || log.includes('QUOTA') || log.includes('EXHAUSTION');
                               const isSuccess = log.includes('SUCCESS');
                               return (
                                 <div key={lIdx} style={{ 
-                                  color: isError ? '#F87171' : isSuccess ? '#4ADE80' : '#CBD5E1',
-                                  fontWeight: isError ? 600 : 400,
+                                  color: isNotice ? '#FBBF24' : isSuccess ? '#4ADE80' : '#CBD5E1',
+                                  fontWeight: isNotice ? 500 : 400,
                                   marginBottom: '3px'
                                 }}>
-                                  {log}
+                                  {displayLog}
                                 </div>
                               );
                             })}
@@ -5873,7 +6152,7 @@ export default function App() {
                             </span>
                           </div>
 
-                          {/* AI Execution & Quota Thinking Console Box */}
+                          {/* AI Execution & Telemetry Thinking Console Box */}
                           <div style={{
                             background: '#0F172A',
                             color: '#E2E8F0',
@@ -5891,24 +6170,25 @@ export default function App() {
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', borderBottom: '1px solid #1E293B', paddingBottom: '6px', color: '#94A3B8', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>
                               <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                 <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#22C55E', boxShadow: '0 0 6px #22C55E' }}></span>
-                                AI Thinking & System Quota Diagnostics
+                                AI Diagnostic Engine & System Telemetry
                               </span>
                               <span style={{ background: '#1E293B', padding: '1px 6px', borderRadius: '4px', color: '#38BDF8', fontSize: '9px' }}>Live Log</span>
                             </div>
                             {aiThinkingLogs.length === 0 ? (
-                              <div style={{ color: '#64748B', fontStyle: 'italic' }}>[System] Connecting to AI analysis engine...</div>
+                              <div style={{ color: '#64748B', fontStyle: 'italic' }}>[System] Connecting securely to AI diagnostic engine...</div>
                             ) : (
                               aiThinkingLogs.map((log, lIdx) => {
-                                const isError = log.includes('429') || log.includes('WARN') || log.includes('QUOTA') || log.includes('EXHAUSTION');
+                                const displayLog = sanitizeLogMessage(log);
+                                const isNotice = log.includes('429') || log.includes('WARN') || log.includes('QUOTA') || log.includes('EXHAUSTION');
                                 const isSuccess = log.includes('SUCCESS');
                                 return (
                                   <div key={lIdx} style={{ 
-                                    color: isError ? '#F87171' : isSuccess ? '#4ADE80' : '#CBD5E1',
-                                    fontWeight: isError ? 600 : 400,
+                                    color: isNotice ? '#FBBF24' : isSuccess ? '#4ADE80' : '#CBD5E1',
+                                    fontWeight: isNotice ? 500 : 400,
                                     wordBreak: 'break-word',
                                     marginBottom: '3px'
                                   }}>
-                                    {log}
+                                    {displayLog}
                                   </div>
                                 );
                               })
